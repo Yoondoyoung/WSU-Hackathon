@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { fetchStoryStatus } from '../lib/api.js';
 
 const StoryViewer = ({ storyId, onBack }) => {
@@ -7,6 +7,8 @@ const StoryViewer = ({ storyId, onBack }) => {
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [autoPlay, setAutoPlay] = useState(true);
+  const audioRef = useRef(null);
 
   useEffect(() => {
     const loadStory = async () => {
@@ -28,14 +30,47 @@ const StoryViewer = ({ storyId, onBack }) => {
   }, [storyId]);
 
   const currentPage = pages[currentPageIndex];
+  const audioSrc = currentPage?.assets?.audio;
+
+  // 페이지가 변경될 때 음성 자동 재생
+  useEffect(() => {
+    if (autoPlay && audioRef.current && audioSrc) {
+      // 이전 음성 정지
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      
+      // 오디오 소스 강제 업데이트
+      audioRef.current.load();
+      
+      // 새 음성 재생
+      setTimeout(() => {
+        if (audioRef.current) {
+          audioRef.current.play().catch(error => {
+            console.log('Auto-play was prevented:', error);
+            setAutoPlay(false);
+          });
+        }
+      }, 200);
+    }
+  }, [currentPageIndex, audioSrc, autoPlay]);
 
   const goToNextPage = () => {
+    // 현재 재생 중인 음성 정지
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
     if (currentPageIndex < pages.length - 1) {
       setCurrentPageIndex(currentPageIndex + 1);
     }
   };
 
   const goToPrevPage = () => {
+    // 현재 재생 중인 음성 정지
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
     if (currentPageIndex > 0) {
       setCurrentPageIndex(currentPageIndex - 1);
     }
@@ -89,7 +124,7 @@ const StoryViewer = ({ storyId, onBack }) => {
       <div className="mb-6">
         <button
           onClick={onBack}
-          className="flex items-center text-gray-600 hover:text-gray-900 mb-4"
+          className="flex items-center px-3 py-2 text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-purple-500 hover:text-white hover:border-purple-500 transition-colors duration-200 mb-4"
         >
           <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -208,11 +243,26 @@ const StoryViewer = ({ storyId, onBack }) => {
         {/* 하단: 오디오 바 */}
         {currentPage.assets?.audio && (
           <div className="border-t border-slate-200 bg-slate-50 p-4 sm:p-6">
-            <div className="mb-3 flex items-center gap-2">
-              <div className="h-2 w-2 rounded-full bg-green-500"></div>
-              <span className="text-sm font-semibold text-slate-600">Audio</span>
+            <div className="mb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                <span className="text-sm font-semibold text-slate-600">Audio</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAutoPlay(!autoPlay)}
+                className={`text-xs px-2 py-1 rounded transition-colors ${
+                  autoPlay 
+                    ? 'bg-green-100 text-green-700 border border-green-200' 
+                    : 'bg-slate-100 text-slate-600 border border-slate-200'
+                }`}
+              >
+                {autoPlay ? 'Auto-play ON' : 'Auto-play OFF'}
+              </button>
             </div>
             <audio 
+              key={`audio-${currentPageIndex}-${audioSrc}`}
+              ref={audioRef}
               controls 
               className="w-full" 
               preload="auto"
@@ -232,3 +282,4 @@ const StoryViewer = ({ storyId, onBack }) => {
 };
 
 export default StoryViewer;
+

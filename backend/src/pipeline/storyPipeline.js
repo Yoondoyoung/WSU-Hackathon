@@ -237,26 +237,34 @@ export const processScene = async ({ storyId, page, timeline, imagePrompt, narra
 
 export const processStory = async ({ storyId, story, narratorVoiceId, characterReferences }) => {
   let completed = 0;
-  console.log(`[pipeline] Story ${storyId}: processing ${story.pages.length} scenes.`);
-  for (let i = 0; i < story.pages.length; i += 1) {
+  const totalPages = story.pages.length;
+  console.log(`[pipeline] Story ${storyId}: processing ${totalPages} scenes.`);
+  
+  // Promise 배열을 저장하여 모든 페이지 완료를 추적
+  const pagePromises = [];
+  
+  for (let i = 0; i < totalPages; i += 1) {
     const page = story.pages[i];
     const prompt = page.imagePrompt || page.image_prompt;
+    
     if (i === 0) {
       console.log(`[pipeline] Story ${storyId}: running scene ${page.pageNumber} immediately.`);
-      await processScene({
+      const firstPagePromise = processScene({
         storyId,
         page: page.pageNumber,
         timeline: page.timeline,
         imagePrompt: prompt,
         narratorVoiceId,
         characterReferences,
+      }).then(() => {
+        completed += 1;
+        updateProgress(storyId, completed);
+        console.log(`[pipeline] Story ${storyId}: scene ${page.pageNumber} finished (${completed}/${totalPages}).`);
       });
-      completed += 1;
-      updateProgress(storyId, completed);
-      console.log(`[pipeline] Story ${storyId}: scene ${page.pageNumber} finished (${completed}/${story.pages.length}).`);
+      pagePromises.push(firstPagePromise);
     } else {
       console.log(`[pipeline] Story ${storyId}: scheduling scene ${page.pageNumber} in background.`);
-      sleep(i * 500)
+      const backgroundPagePromise = sleep(i * 500)
         .then(async () => {
           await processScene({
             storyId,
@@ -268,11 +276,31 @@ export const processStory = async ({ storyId, story, narratorVoiceId, characterR
           });
           completed += 1;
           updateProgress(storyId, completed);
-          console.log(`[pipeline] Story ${storyId}: scene ${page.pageNumber} finished (${completed}/${story.pages.length}).`);
+          console.log(`[pipeline] Story ${storyId}: scene ${page.pageNumber} finished (${completed}/${totalPages}).`);
         })
         .catch((error) => {
           console.error(`[pipeline] Story ${storyId}: background scene ${page.pageNumber} crashed`, error);
         });
+      pagePromises.push(backgroundPagePromise);
     }
+  }
+  
+  // 모든 페이지 처리가 완료될 때까지 대기
+  try {
+    await Promise.all(pagePromises);
+    console.log(`[pipeline] Story ${storyId}: All ${totalPages} scenes completed successfully.`);
+    
+    // 스토리 상태를 completed로 업데이트
+    const { updateStoryStatus } = await import('../services/storyStorageService.js');
+    await updateStoryStatus(storyId, 'completed');
+    console.log(`[pipeline] Story ${storyId}: Status updated to completed.`);
+    
+  } catch (error) {
+    console.error(`[pipeline] Story ${storyId}: Some scenes failed to process`, error);
+    
+    // 일부 실패 시에도 상태 업데이트 (선택사항)
+    const { updateStoryStatus } = await import('../services/storyStorageService.js');
+    await updateStoryStatus(storyId, 'failed');
+    console.log(`[pipeline] Story ${storyId}: Status updated to failed.`);
   }
 };

@@ -180,6 +180,44 @@ export const getStoriesBySession = async (sessionId) => {
   }
 };
 
+// Get all stories from database with pagination
+export const getAllStoriesFromDB = async (limit = 16, offset = 0) => {
+  try {
+    // Get total count
+    const { count, error: countError } = await supabase
+      .from('stories')
+      .select('*', { count: 'exact', head: true });
+
+    if (countError) {
+      console.error('[storyStorage] Get stories count error:', countError);
+      throw new HttpError(500, 'Failed to get stories count', { error: countError.message });
+    }
+
+    // Get paginated stories
+    const { data, error } = await supabase
+      .from('stories')
+      .select(`
+        *,
+        story_pages (*)
+      `)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error) {
+      console.error('[storyStorage] Get all stories error:', error);
+      throw new HttpError(500, 'Failed to get all stories', { error: error.message });
+    }
+
+    return {
+      stories: data || [],
+      total: count || 0
+    };
+  } catch (error) {
+    console.error('[storyStorage] Get all stories failed:', error);
+    throw error;
+  }
+};
+
 // Save story generation log
 export const saveGenerationLog = async (storyId, logData) => {
   try {

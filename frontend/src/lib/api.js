@@ -134,6 +134,15 @@ export const getSessionStats = async (sessionId) => {
   }
 };
 
+export const getAllStories = async (page = 1, limit = 16) => {
+  try {
+    const { data } = await client.get(`/story/stories?page=${page}&limit=${limit}`);
+    return data;
+  } catch (error) {
+    throw new Error(unwrap(error));
+  }
+};
+
 // Story management
 export const getStoryById = async (storyId) => {
   try {

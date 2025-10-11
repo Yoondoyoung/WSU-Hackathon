@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 
 const statusBadge = {
   pending: 'bg-slate-100 text-slate-600 border border-slate-200',
@@ -17,12 +17,67 @@ const getLatestLog = (page) => {
 const StoryPager = ({ story, pages }) => {
   const [index, setIndex] = useState(0);
   const [imageError, setImageError] = useState(false);
+  const [autoPlay, setAutoPlay] = useState(true);
+  const audioRef = useRef(null);
   const total = pages?.length || 0;
 
   const current = useMemo(() => {
     if (!pages || pages.length === 0) return null;
     return pages[Math.min(Math.max(index, 0), pages.length - 1)];
   }, [index, pages]);
+
+  // 우선순위: assets.image (DB URL) > imageUrl > image
+  const imageSrc = current?.assets?.image || current?.imageUrl || current?.image;
+  const audioSrc = current?.audioUrl || current?.assets?.audio;
+  const status = current?.status || 'pending';
+  const latestLog = getLatestLog(current);
+
+  // 페이지가 변경될 때 음성 자동 재생
+  useEffect(() => {
+    if (autoPlay && audioRef.current && audioSrc) {
+      // 이전 음성 정지
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      
+      // 오디오 소스 강제 업데이트
+      audioRef.current.load();
+      
+      // 새 음성 재생
+      setTimeout(() => {
+        if (audioRef.current) {
+          audioRef.current.play().catch(error => {
+            console.log('Auto-play was prevented:', error);
+            setAutoPlay(false);
+          });
+        }
+      }, 200);
+    }
+  }, [index, audioSrc, autoPlay]);
+
+  // 디버깅: 현재 페이지의 오디오 소스 출력
+  useEffect(() => {
+    console.log(`Page ${index + 1} audio source:`, audioSrc);
+    console.log(`Current page data:`, current);
+  }, [index, audioSrc, current]);
+
+  const goPrev = () => {
+    // 현재 재생 중인 음성 정지
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    setIndex((i) => Math.max(i - 1, 0));
+    setImageError(false); // Reset image error when changing pages
+  };
+  const goNext = () => {
+    // 현재 재생 중인 음성 정지
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    setIndex((i) => Math.min(i + 1, total - 1));
+    setImageError(false); // Reset image error when changing pages
+  };
 
   if (!story || !pages || pages.length === 0) {
     return (
@@ -32,21 +87,6 @@ const StoryPager = ({ story, pages }) => {
       </section>
     );
   }
-
-  const goPrev = () => {
-    setIndex((i) => Math.max(i - 1, 0));
-    setImageError(false); // Reset image error when changing pages
-  };
-  const goNext = () => {
-    setIndex((i) => Math.min(i + 1, total - 1));
-    setImageError(false); // Reset image error when changing pages
-  };
-
-  // 우선순위: assets.image (DB URL) > imageUrl > image
-  const imageSrc = current?.assets?.image || current?.imageUrl || current?.image;
-  const audioSrc = current?.audioUrl || current?.assets?.audio;
-  const status = current?.status || 'pending';
-  const latestLog = getLatestLog(current);
 
   return (
     <section className="flex h-full flex-col gap-4 overflow-hidden rounded-xl bg-white p-6 shadow-lg">
@@ -183,11 +223,26 @@ const StoryPager = ({ story, pages }) => {
           {/* 하단: 오디오 재생 바 */}
           {audioSrc && (
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-              <div className="mb-2 flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                <span className="text-xs font-semibold text-slate-600">Audio</span>
+              <div className="mb-2 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                  <span className="text-xs font-semibold text-slate-600">Audio</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAutoPlay(!autoPlay)}
+                  className={`text-xs px-2 py-1 rounded transition-colors ${
+                    autoPlay 
+                      ? 'bg-green-100 text-green-700 border border-green-200' 
+                      : 'bg-slate-100 text-slate-600 border border-slate-200'
+                  }`}
+                >
+                  {autoPlay ? 'Auto-play ON' : 'Auto-play OFF'}
+                </button>
               </div>
               <audio 
+                key={`audio-${index}-${audioSrc}`}
+                ref={audioRef}
                 controls 
                 className="w-full" 
                 preload="auto"

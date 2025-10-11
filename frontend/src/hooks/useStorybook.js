@@ -132,43 +132,6 @@ export const useStorybook = (onStoryCompleted) => {
     };
   }, [storyId, status, stopPolling]);
 
-  const generateNarrationOnly = useCallback(async (voiceId) => {
-    if (!pages.length) {
-      const err = new Error('Please generate a story first.');
-      setError(err.message);
-      throw err;
-    }
-    setStatus('narrating');
-    try {
-      const audios = await narratePages({
-        pages,
-        voiceId,
-        voiceAlias: lastPayload?.narrationVoiceAlias,
-      });
-      setPages((prev) =>
-        prev.map((p) => {
-          const found = audios.find((a) => a.page === (p.pageNumber ?? p.page));
-          if (!found) return p;
-          return {
-            ...p,
-            assets: {
-              ...(p.assets || {}),
-              audio: found.audioUrl,
-              narration: found.audioUrl,
-            },
-            audioUrl: found.audioUrl,
-            audio: found.audio,
-          };
-        })
-      );
-      return audios;
-    } catch (e) {
-      setError(e.message);
-      throw e;
-    } finally {
-      setStatus('idle');
-    }
-  }, [pages, lastPayload, setError]);
 
   const isPipelineActive = status === 'polling' || status === 'generating';
   const isLoading = status !== 'idle';
@@ -214,7 +177,6 @@ export const useStorybook = (onStoryCompleted) => {
     lastPayload,
     storyId,
     startStoryPipeline,
-    generateNarrationOnly,
     reset,
   };
 };

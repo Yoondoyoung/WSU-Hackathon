@@ -25,6 +25,7 @@ import {
   updateStoryPage,
   getStory,
   getStoriesBySession,
+  getAllStoriesFromDB,
   saveGenerationLog,
   getGenerationLogs,
   saveStoryAsset,
@@ -200,7 +201,7 @@ export const buildStoryPipeline = asyncHandler(async (req, res) => {
 
   // Create story in database
   const storyData = {
-    title: req.body.title || 'Untitled Story',
+    title: req.body.title || 'The Epic Adventure',
     genre: req.body.genre,
     target_audience: req.body.targetAgeGroup,
     theme: req.body.theme,
@@ -679,6 +680,25 @@ export const getStoriesBySessionId = asyncHandler(async (req, res) => {
     sessionId,
     stories,
     total: stories.length
+  });
+});
+
+// Get all stories (for library display) with pagination
+export const getAllStories = asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 16;
+  const offset = (page - 1) * limit;
+  
+  const { stories, total } = await getAllStoriesFromDB(limit, offset);
+  
+  res.status(200).json({
+    stories,
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+    hasNextPage: page < Math.ceil(total / limit),
+    hasPrevPage: page > 1
   });
 });
 

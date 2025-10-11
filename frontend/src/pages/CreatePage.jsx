@@ -19,7 +19,6 @@ const CreatePage = ({ onNavigateToLibrary }) => {
     isLoading,
     latestError,
     startStoryPipeline,
-    generateNarrationOnly,
     isPipelineActive,
     pipelineMessage,
     progress,
@@ -36,13 +35,6 @@ const CreatePage = ({ onNavigateToLibrary }) => {
     }
   };
 
-  const handleNarration = async () => {
-    try {
-      await generateNarrationOnly();
-    } catch (error) {
-      console.error(error);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/10 via-secondary/10 to-white pb-16">
@@ -83,15 +75,6 @@ const CreatePage = ({ onNavigateToLibrary }) => {
           {isPipelineActive && (
             <StoryPipelineStatus progress={progress} message={pipelineMessage} pages={pages} />
           )}
-          <div className="flex items-center justify-end">
-            <button 
-              onClick={handleNarration} 
-              disabled={isLoading || isPipelineActive}
-              className="text-sm sm:text-base px-3 sm:px-4 py-2 sm:py-3 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {status === 'narrating' ? 'Generating narration…' : 'Generate narration (narrator only)'}
-            </button>
-          </div>
           <StoryPager story={story} pages={pages} />
         </section>
       </main>

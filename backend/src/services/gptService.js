@@ -4,7 +4,87 @@ import { fileURLToPath } from "url";
 import { config as loadEnv } from "dotenv";
 import { HttpError } from "../utils/errorHandlers.js";
 import { defaultCharacterVoiceSettings } from "../utils/voiceLibrary.js";
+import { voiceMap } from "../config/voiceMap.js";
 import fs from "fs";
+
+// Generate comprehensive voice list for GPT prompt
+const generateVoiceListForPrompt = () => {
+  let voiceList = "## AVAILABLE VOICES FOR CHARACTER VOICE MAPPING:\n\n";
+  
+  // Add instructions for GPT
+  voiceList += `**IMPORTANT**: When creating characters, you MUST assign appropriate voice_id based on the character's:
+- Gender (male/female)
+- Age (young/teen/adult/elderly) 
+- Role (protagonist/antagonist/supporting/mentor)
+- Personality traits (brave, mysterious, kind, etc.)
+- Story context (adventure, fantasy, horror, etc.)
+
+**VOICE SELECTION RULES:**
+1. **Gender Match**: Male characters use male voices, female characters use female voices
+2. **Age Match**: Young characters (under 18) use young voices, adults use adult voices, elderly use elderly voices
+3. **Role Match**: 
+   - Protagonists: Use confident, engaging voices
+   - Antagonists: Use deeper, more intense voices
+   - Mentors: Use wise, calm voices
+   - Supporting: Use friendly, approachable voices
+4. **Personality Match**: Match voice characteristics to character traits
+5. **Consistency**: Use the SAME voice_id for each character throughout the entire story
+
+\n`;
+
+  Object.keys(voiceMap).forEach(category => {
+    if (category === 'all') return; // Skip the 'all' category
+    
+    voiceList += `### ${category.toUpperCase()} VOICES:\n`;
+    
+    // Show all age groups for this category
+    ['young', 'teen', 'adult', 'elderly'].forEach(ageGroup => {
+      const voices = voiceMap[category][ageGroup] || [];
+      if (voices.length > 0) {
+        voiceList += `\n**${ageGroup.toUpperCase()} ${category.toUpperCase()}:**\n`;
+        voices.forEach(voice => {
+          const description = voice.description || 'Professional voice';
+          const accent = voice.accent ? ` (${voice.accent} accent)` : '';
+          const useCase = voice.use_case ? ` - ${voice.use_case}` : '';
+          voiceList += `- **"${voice.id}"** - ${voice.name}${accent}${useCase}\n`;
+        });
+      }
+    });
+    voiceList += "\n";
+  });
+  
+  // Add special recommendations
+  voiceList += `## RECOMMENDED VOICE SELECTIONS BY CHARACTER TYPE:\n\n`;
+  voiceList += `**For Young Male Heroes (12-18):**\n`;
+  voiceList += `- "TX3LPaxmHKxFdv7VOQHJ" (Liam) - Energetic, confident\n`;
+  voiceList += `- "8JVbfL6oEdmuxKn5DK2C" (Johnny Kid) - Serious, determined\n\n`;
+  
+  voiceList += `**For Young Female Heroes (12-18):**\n`;
+  voiceList += `- "ZF6FPAbjXT4488VcRRnw" (Amelia) - Clear, enthusiastic\n`;
+  voiceList += `- "Crm8VULvkVs5ZBDa1Ixm" (Andrea Wolff) - Youthful, clear\n\n`;
+  
+  voiceList += `**For Adult Male Characters (25-50):**\n`;
+  voiceList += `- "EkK5I93UQWFDigLMpZcX" (James) - Husky, engaging\n`;
+  voiceList += `- "5Q0t7uMcjvnagumLfvZi" (Paul) - Professional, clear\n\n`;
+  
+  voiceList += `**For Adult Female Characters (25-50):**\n`;
+  voiceList += `- "EXAVITQu4vr4xnSDxMaL" (Sarah) - Confident, warm\n`;
+  voiceList += `- "9BWtsMINqrJLrRacOk9x" (Aria) - Elegant, sophisticated\n\n`;
+  
+  voiceList += `**For Villains/Antagonists:**\n`;
+  voiceList += `- "2EiwWnXFnvU5JabPnv8n" (Clyde) - Deep, menacing\n`;
+  voiceList += `- "VR6AewLTigWG4xSOukaG" (Arnold) - Gruff, intimidating\n\n`;
+  
+  voiceList += `**For Wise Mentors/Elderly:**\n`;
+  voiceList += `- "EiNlNiXeDU1pqqOPrYMO" (John Doe) - Deep, wise\n`;
+  voiceList += `- "iUqOXhMfiOIbBejNtfLR" (W. Storytime Oxley) - Rich, storytelling\n\n`;
+  
+  voiceList += `**For Mysterious/Otherworldly Characters:**\n`;
+  voiceList += `- "1hlpeD1ydbI2ow0Tt3EW" (Oracle X) - Mysterious, otherworldly\n\n`;
+  
+  return voiceList;
+};
+
 // Timeline utility functions (inline implementation)
 const timelineDialogueText = (timeline = []) => {
   return timeline
@@ -337,7 +417,6 @@ const applyCharacterConsistency = (story, rawCharacterBible) => {
         const prompt = page.imagePrompt || page.image_prompt;
         const consistencyNote = `Consistent characters: ${descriptorText}.`;
         if (prompt?.includes('Consistent characters:')) {
-          // Already has consistency note, don't add again
           page.imagePrompt = prompt;
         } else if (prompt) {
           page.imagePrompt = `${prompt.trim()} ${consistencyNote}`;
@@ -448,10 +527,10 @@ const parseStoryFromContent = (content) => {
     });
 
     const story = {
-      title: parsed.title ?? "Untitled Adventure",
+      title: parsed.title ?? "The Epic Adventure",
       logline: parsed.genre
         ? `${parsed.genre} - ${parsed.target_audience}`
-        : "Untitled Story",
+        : "An Epic Adventure Awaits",
       pages,
       fullText: null,
       metadata: {
@@ -533,10 +612,10 @@ const parseStoryFromContent = (content) => {
   });
 
   const story = {
-    title: parsed.title ?? "Untitled Adventure",
+    title: parsed.title ?? "The Epic Adventure",
     logline: parsed.genre
       ? `${parsed.genre} - ${parsed.target_audience}`
-      : "Untitled Story",
+      : "An Epic Adventure Awaits",
     pages: scenes, // Keep as pages for compatibility
     fullText: null,
     metadata: {
@@ -656,6 +735,7 @@ const getPageByPageGuide = (storyLength) => {
 export const createStory = async (options) => {
   ensureOpenAiKey();
   const voicePrompt = loadVoicePrompt();
+  const voiceList = generateVoiceListForPrompt();
   
   const prompt = `
     ## SYSTEM INSTRUCTIONS
@@ -665,6 +745,14 @@ export const createStory = async (options) => {
     Use narration sparingly — only to describe scene transitions, atmosphere, or internal emotions that dialogue cannot convey.
 
     The story should feel like a radio drama or film script with vivid character voices and natural pacing.
+
+    **CRITICAL: You MUST create a compelling, descriptive title for every story. Never use generic titles like "Untitled Story" or "Untitled Adventure".**
+    Create titles that capture the essence of the story, such as:
+    - "The Enchanted Forest Quest"
+    - "Mystery of the Lost City" 
+    - "Adventure in the Crystal Caves"
+    - "The Dragon's Last Stand"
+    - "Journey to the Floating Islands"
 
     Your output must be strictly valid JSON that follows the timeline structure described below.
 
@@ -714,9 +802,24 @@ export const createStory = async (options) => {
     - "appearance": Object with fields "age", "hair", "eyes", "skin", "build", "height", and "distinctive_features"
     - "wardrobe": Consistent outfit description with colors and accessories
     - "palette": 3-4 color keywords that define the visual palette
-    - "voice_id": Choose exactly one voice ID (from the allowed list) for this character and reuse it for every timeline entry
+    - "voice_id": **CRITICAL** - Choose exactly one voice ID from the voice list below based on:
+      * Character gender (male/female)
+      * Character age (young/teen/adult/elderly)
+      * Character role (protagonist/antagonist/supporting/mentor)
+      * Character personality (brave, mysterious, kind, etc.)
+      * Story context (adventure, fantasy, horror, etc.)
     - "voice_settings": Object with numeric values for "stability", "similarity_boost", "style", and "speed"
     - "image_prompt": A single, camera-ready sentence summarising how this character should look in illustrations
+    
+    **VOICE SELECTION EXAMPLES:**
+    - Young male hero (12-18): Use "TX3LPaxmHKxFdv7VOQHJ" (Liam) or "8JVbfL6oEdmuxKn5DK2C" (Johnny Kid)
+    - Young female hero (12-18): Use "ZF6FPAbjXT4488VcRRnw" (Amelia) or "Crm8VULvkVs5ZBDa1Ixm" (Andrea Wolff)
+    - Adult male protagonist: Use "EkK5I93UQWFDigLMpZcX" (James) or "5Q0t7uMcjvnagumLfvZi" (Paul)
+    - Adult female protagonist: Use "EXAVITQu4vr4xnSDxMaL" (Sarah) or "9BWtsMINqrJLrRacOk9x" (Aria)
+    - Villain/antagonist: Use "2EiwWnXFnvU5JabPnv8n" (Clyde) or "VR6AewLTigWG4xSOukaG" (Arnold)
+    - Wise mentor/elderly: Use "EiNlNiXeDU1pqqOPrYMO" (John Doe) or "iUqOXhMfiOIbBejNtfLR" (W. Storytime Oxley)
+    - Mysterious character: Use "1hlpeD1ydbI2ow0Tt3EW" (Oracle X)
+    
     Only use characters defined in this bible in the story. If a new named character is absolutely necessary, add them to the bible as well.
 
     ## STORY STRUCTURE
@@ -742,26 +845,7 @@ export const createStory = async (options) => {
     - type: "character" 
     - name: Character name
     - emotion: One of the emotion presets (see below)
-    - voice_id: Choose character voice based on the character's gender and role:
-      
-      **For MALE characters:**
-      * Young Hero: "TX3LPaxmHKxFdv7VOQHJ" (Liam - energetic, warm young male)
-      * Mature Hero: "EkK5I93UQWFDigLMpZcX" (James - husky, engaging male)
-      * Villain: "2EiwWnXFnvU5JabPnv8n" (Clyde - deep, intense male)
-      * Mentor: "EiNlNiXeDU1pqqOPrYMO" (John Doe - deep, wise male)
-      * Sidekick: "29vD33N1CtxCmqQRPOHJ" (Drew - casual, friendly male)
-      
-      **For FEMALE characters:**
-      * Young Hero: "ZF6FPAbjXT4488VcRRnw" (Amelia - clear, enthusiastic young female)
-      * Mature Hero: "EXAVITQu4vr4xnSDxMaL" (Sarah - confident, warm female)
-      * Villain: "XB0fDUnXU5powFXDhCwa" (Charlotte - sensual, raspy female)
-      * Mentor: "Xb7hH8MSUJpSbSDYk0k2" (Alice - clear, engaging female)
-      * Sidekick: "Crm8VULvkVs5ZBDa1Ixm" (Andrea Wolff - clear, youthful female)
-      
-      **For NON-BINARY or MYSTICAL characters:**
-      * Mystical: "1hlpeD1ydbI2ow0Tt3EW" (Oracle X - mysterious, otherworldly)
-      * Neutral: "Mu5jxyqZOLIGltFpfalg" (Jameson - calm, meditative)
-      
+    - voice_id: **MUST match the voice_id assigned in character_bible** - Use the exact same voice_id for this character throughout the entire story
     - voice_settings: Use emotion presets (see below)
     - text: Natural dialogue without stage directions - just the spoken words
 
@@ -967,11 +1051,12 @@ export const createStory = async (options) => {
     3. **Minimal Narration**: Use narration only for scene transitions and atmosphere (1-2 sentences max)
     4. **Natural Speech**: Character dialogue should be natural, without stage directions in quotes
     5. **Consistent Voices**: 
-       - Use the SAME voice_id for each character across ALL pages
+       - **CRITICAL**: Use the SAME voice_id for each character across ALL pages - this is assigned in character_bible
        - Use the SAME narrator voice_id "${options.narrationVoiceId || 'EkK5I93UQWFDigLMpZcX'}" throughout the entire story
        - Match character gender to voice gender: male characters use male voices, female characters use female voices
-       - Create a character-to-voice mapping at the start and stick to it
-       - Example: If Alex (male) uses "TX3LPaxmHKxFdv7VOQHJ" in page 1, use the same ID for Alex in all pages
+       - Match character age to voice age: young characters use young voices, adults use adult voices
+       - Match character role to voice characteristics: heroes use confident voices, villains use intense voices
+       - Example: If Alex (male, young hero) uses "TX3LPaxmHKxFdv7VOQHJ" in character_bible, use the same ID for Alex in all timeline entries
     6. **Emotional Authenticity**: Use appropriate emotion presets for each character's state
     7. **Radio Drama Feel**: Focus on character interactions and emotional beats
     8. **Diverse SFX**: Use varied sound effects that match the scene's mood and action
@@ -986,7 +1071,7 @@ export const createStory = async (options) => {
     ## OUTPUT JSON STRUCTURE
     The final response must be valid JSON with the following top-level fields:
     {
-      "title": string,
+      "title": string (REQUIRED - Create an engaging, descriptive title that captures the essence of the story. Examples: "The Enchanted Forest Quest", "Mystery of the Lost City", "Adventure in the Crystal Caves"),
       "logline": string,
       "genre": string,
       "target_audience": string,
@@ -994,6 +1079,8 @@ export const createStory = async (options) => {
       "pages": [...]
     }
     Every timeline entry must use the voice_id assigned in "character_bible", and each page's image_prompt must reference the appropriate character descriptions from the bible.
+
+${voiceList}
 
 ${voicePrompt}
 

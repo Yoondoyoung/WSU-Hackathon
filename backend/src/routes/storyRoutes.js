@@ -12,6 +12,7 @@ import {
   getStoryStatus,
   getStoryPage,
   getStoriesBySessionId,
+  getAllStories,
   getStoryById,
   getSessionStatistics,
   getStoryGenerationLogs,
@@ -34,6 +35,7 @@ router.get('/session/:sessionId/stories', getStoriesBySessionId);
 router.get('/session/:sessionId/stats', getSessionStatistics);
 
 // Story management
+router.get('/stories', getAllStories);
 router.post('/generate', generateStory);
 router.post('/build', buildStoryPipeline);
 

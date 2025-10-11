@@ -1,6 +1,49 @@
 import { useState, useEffect, useMemo } from 'react';
-import { getStoriesBySession, getSessionStats, createSession } from '../lib/api.js';
+import { getStoriesBySession, getSessionStats, createSession, getAllStories } from '../lib/api.js';
 import StoryViewer from '../components/StoryViewer.jsx';
+
+// 오디오 파일의 길이를 가져오는 유틸리티 함수
+const getAudioDuration = (audioUrl) => {
+  return new Promise((resolve) => {
+    if (!audioUrl) {
+      resolve(0);
+      return;
+    }
+    
+    const audio = new Audio();
+    audio.addEventListener('loadedmetadata', () => {
+      resolve(audio.duration || 0);
+    });
+    audio.addEventListener('error', () => {
+      resolve(0);
+    });
+    audio.src = audioUrl;
+  });
+};
+
+// 스토리의 총 오디오 시간을 계산하는 함수
+const calculateStoryDuration = async (storyPages) => {
+  if (!storyPages || !Array.isArray(storyPages)) {
+    return 0;
+  }
+  
+  const audioUrls = storyPages
+    .map(page => page.audio_url || page.assets?.audio)
+    .filter(url => url);
+  
+  if (audioUrls.length === 0) {
+    return 0;
+  }
+  
+  try {
+    const durations = await Promise.all(audioUrls.map(getAudioDuration));
+    const totalSeconds = durations.reduce((sum, duration) => sum + duration, 0);
+    return Math.ceil(totalSeconds / 60); // 분 단위로 변환하고 올림
+  } catch (error) {
+    console.warn('Failed to calculate audio duration:', error);
+    return 0;
+  }
+};
 
 const LibraryPage = ({ onNavigateToCreate }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -10,72 +53,10 @@ const LibraryPage = ({ onNavigateToCreate }) => {
   const [stories, setStories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedStoryId, setSelectedStoryId] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalStories, setTotalStories] = useState(0);
 
-  // Mock data for now - will be replaced with Supabase data
-  const mockStories = [
-    {
-      id: '1',
-      title: 'The Enchanted Forest',
-      author: 'Emma Rivers',
-      genre: 'Fantasy',
-      readingTime: 15,
-      thumbnail: '/api/placeholder/300/200',
-      featured: true,
-      createdAt: new Date('2024-01-15'),
-      pages: 4
-    },
-    {
-      id: '2',
-      title: 'Lost in Time',
-      author: 'James Carter',
-      genre: 'Adventure',
-      readingTime: 20,
-      thumbnail: '/api/placeholder/300/200',
-      new: true,
-      createdAt: new Date('2024-01-20'),
-      pages: 5
-    },
-    {
-      id: '3',
-      title: 'Mystery Manor',
-      author: 'Sarah Blake',
-      genre: 'Mystery',
-      readingTime: 25,
-      thumbnail: '/api/placeholder/300/200',
-      createdAt: new Date('2024-01-18'),
-      pages: 6
-    },
-    {
-      id: '4',
-      title: 'Ocean Dreams',
-      author: 'Michael Torres',
-      genre: 'Romance',
-      readingTime: 10,
-      thumbnail: '/api/placeholder/300/200',
-      createdAt: new Date('2024-01-22'),
-      pages: 3
-    },
-    {
-      id: '5',
-      title: 'Mountain Peaks',
-      author: 'Laura Chen',
-      genre: 'Adventure',
-      readingTime: 18,
-      thumbnail: '/api/placeholder/300/200',
-      createdAt: new Date('2024-01-19'),
-      pages: 4
-    },
-    {
-      id: '6',
-      title: 'Starlight Tales',
-      author: 'David Kim',
-      genre: 'Fantasy',
-      readingTime: 12,
-      thumbnail: '/api/placeholder/300/200',
-      createdAt: new Date('2024-01-21'),
-      pages: 3
-    }
-  ];
 
   // Dynamic genre calculation based on actual stories
   const genres = useMemo(() => {
@@ -97,36 +78,31 @@ const LibraryPage = ({ onNavigateToCreate }) => {
     const loadStories = async () => {
       try {
         setLoading(true);
-        console.log('📚 Loading stories from database...');
+        console.log('📚 Loading stories from database (page', currentPage, ')...');
         
-        // Get or create session
-        let sessionId = localStorage.getItem('sessionId');
-        if (!sessionId) {
-          console.log('📚 No session found, creating new session...');
-          const session = await createSession();
-          sessionId = session.sessionId;
-          localStorage.setItem('sessionId', sessionId);
-          console.log('📚 Created new session:', sessionId);
-        } else {
-          console.log('📚 Using existing session:', sessionId);
-        }
-        
-        // Load stories from Supabase
-        console.log('📚 Fetching stories for session:', sessionId);
-        const response = await getStoriesBySession(sessionId);
+        // Load all stories at once (no pagination on server side)
+        const response = await getAllStories(1, 1000); // Load a large number to get all stories
         console.log('📚 API response:', response);
+        
+        if (!response || !response.stories) {
+          throw new Error('Invalid API response format');
+        }
         
         const storiesData = response.stories || [];
         console.log('📚 Raw stories data:', storiesData);
         
         // Transform Supabase data to match our component structure
-        const transformedStories = storiesData.map(story => {
+        const transformedStories = await Promise.all(storiesData.map(async (story) => {
+          // 실제 오디오 시간 계산
+          const actualDuration = await calculateStoryDuration(story.story_pages);
+          const readingTime = actualDuration > 0 ? actualDuration : Math.max(5, (story.story_length || 4) * 3);
+          
           const transformed = {
             id: story.id,
-            title: story.title || 'Untitled Story',
+            title: story.title || 'The Epic Adventure',
             author: 'You', // Since these are user-generated stories
             genre: story.genre || 'General',
-            readingTime: Math.max(5, (story.story_length || 4) * 3), // Estimate reading time
+            readingTime: readingTime,
             thumbnail: story.story_pages?.[0]?.image_url || '/api/placeholder/300/200',
             featured: false,
             new: new Date(story.created_at) > new Date(Date.now() - 24 * 60 * 60 * 1000), // New if created within 24 hours
@@ -136,22 +112,36 @@ const LibraryPage = ({ onNavigateToCreate }) => {
           };
           console.log('📚 Transformed story:', transformed);
           return transformed;
-        });
+        }));
+        
+        console.log('📚 Total stories found:', transformedStories.length);
+        console.log('📚 Stories by status:', transformedStories.reduce((acc, story) => {
+          acc[story.status] = (acc[story.status] || 0) + 1;
+          return acc;
+        }, {}));
         
         console.log('📚 Final transformed stories:', transformedStories);
         setStories(transformedStories);
+        setTotalStories(transformedStories.length);
+        
       } catch (error) {
         console.error('📚 Failed to load stories:', error);
-        console.log('📚 Falling back to mock data');
-        // Fallback to mock data if API fails
-        setStories(mockStories);
+        console.error('📚 Error details:', {
+          message: error.message,
+          stack: error.stack,
+          response: error.response?.data
+        });
+        
+        // Always show empty state on error - no fallback to mock data
+        console.log('📚 Failed to load stories, showing empty state');
+        setStories([]);
       } finally {
         setLoading(false);
       }
     };
     
     loadStories();
-  }, []);
+  }, []); // Remove currentPage dependency - only load once on mount
 
   const filteredStories = useMemo(() => {
     return stories.filter(story => {
@@ -164,7 +154,21 @@ const LibraryPage = ({ onNavigateToCreate }) => {
     });
   }, [stories, searchTerm, selectedGenre, readingTime]);
 
-  const totalStories = stories.length;
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedGenre, readingTime]);
+
+  // Paginate the filtered stories
+  const paginatedStories = useMemo(() => {
+    const startIndex = (currentPage - 1) * 16;
+    const endIndex = startIndex + 16;
+    return filteredStories.slice(startIndex, endIndex);
+  }, [filteredStories, currentPage]);
+
+  // Calculate total pages based on filtered results
+  const totalPagesForFiltered = Math.ceil(filteredStories.length / 16);
+
   const newToday = stories.filter(story => {
     const today = new Date();
     const storyDate = new Date(story.createdAt);
@@ -258,7 +262,7 @@ const LibraryPage = ({ onNavigateToCreate }) => {
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-orange-50 rounded-lg p-4">
               <div className="text-2xl font-bold text-orange-600">{totalStories}</div>
-              <div className="text-sm text-gray-600">Stories</div>
+              <div className="text-sm text-gray-600">Total Stories</div>
             </div>
             <div className="bg-green-50 rounded-lg p-4">
               <div className="text-2xl font-bold text-green-600">{newToday}</div>
@@ -433,7 +437,7 @@ const LibraryPage = ({ onNavigateToCreate }) => {
               ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' 
               : 'grid-cols-1'
           }`}>
-            {filteredStories.map((story) => (
+            {paginatedStories.map((story) => (
               <StoryCard 
                 key={story.id} 
                 story={story} 
@@ -442,6 +446,62 @@ const LibraryPage = ({ onNavigateToCreate }) => {
               />
             ))}
           </div>
+
+          {/* Pagination */}
+          {totalPagesForFiltered > 1 && (
+            <div className="mt-8 flex items-center justify-center space-x-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Previous
+              </button>
+              
+              {/* Page numbers */}
+              {Array.from({ length: Math.min(5, totalPagesForFiltered) }, (_, i) => {
+                let pageNum;
+                if (totalPagesForFiltered <= 5) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (currentPage >= totalPagesForFiltered - 2) {
+                  pageNum = totalPagesForFiltered - 4 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
+                
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setCurrentPage(pageNum)}
+                    className={`px-3 py-2 text-sm font-medium rounded-md ${
+                      currentPage === pageNum
+                        ? 'bg-orange-500 text-white'
+                        : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+              
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPagesForFiltered, prev + 1))}
+                disabled={currentPage === totalPagesForFiltered}
+                className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+            </div>
+          )}
+
+          {/* Page info */}
+          {totalPagesForFiltered > 1 && (
+            <div className="mt-4 text-center text-sm text-gray-500">
+              Page {currentPage} of {totalPagesForFiltered} ({filteredStories.length} filtered stories)
+            </div>
+          )}
 
           {filteredStories.length === 0 && (
             <div>
@@ -473,6 +533,11 @@ const LibraryPage = ({ onNavigateToCreate }) => {
                     </div>
                     <h3 className="text-lg font-medium text-gray-900 mb-2">No stories found</h3>
                     <p className="text-gray-500">Try adjusting your search or filters</p>
+                    <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <p className="text-sm text-yellow-800">
+                        💡 <strong>Tip:</strong> Make sure the backend server is running to load your stories from the database.
+                      </p>
+                    </div>
                   </div>
                 </div>
               )}

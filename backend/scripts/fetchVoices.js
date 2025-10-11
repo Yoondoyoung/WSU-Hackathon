@@ -2,260 +2,294 @@ import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import dotenv from 'dotenv';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load environment variables
-dotenv.config({ path: path.join(__dirname, '..', '.env') });
-
-const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
+// ElevenLabs API configuration
+const ELEVENLABS_API_KEY = '57a9ca943d59213e3312e0e0dfd14c6a183baf3bda3293c70852c8a32fb23e20';
+const ELEVENLABS_API_URL = 'https://api.elevenlabs.io/v1';
 
 if (!ELEVENLABS_API_KEY) {
-  console.error('❌ ELEVENLABS_API_KEY not found in environment variables');
+  console.error('❌ ELEVENLABS_API_KEY environment variable is required');
   process.exit(1);
 }
 
-async function fetchVoices() {
+async function fetchAllVoices() {
   try {
-    console.log('🎤 Fetching voices from ElevenLabs...');
+    console.log('🎤 Fetching all voices from ElevenLabs...');
     
-    const response = await axios.get('https://api.elevenlabs.io/v2/voices', {
+    const response = await axios.get(`${ELEVENLABS_API_URL}/voices`, {
       headers: {
         'xi-api-key': ELEVENLABS_API_KEY,
-      },
-      params: {
-        page_size: 100, // Get more voices
-        include_total_count: true,
+        'Content-Type': 'application/json'
       }
     });
 
-    const { voices, total_count } = response.data;
-    console.log(`✅ Found ${voices.length} voices (total: ${total_count})`);
+    const voices = response.data.voices || [];
+    console.log(`✅ Found ${voices.length} voices`);
 
     // Categorize voices
-    const categorized = {
-      narrator: [],
-      characters: [],
-      male: [],
-      female: [],
-      young: [],
-      mature: [],
-      professional: [],
-      casual: [],
-      all: voices.map(voice => ({
-        voice_id: voice.voice_id,
-        name: voice.name,
-        category: voice.category,
-        description: voice.description,
-        labels: voice.labels || {},
-        preview_url: voice.preview_url,
-      }))
-    };
-
-    // Categorize based on name, description, and labels
-    voices.forEach(voice => {
-      const name = voice.name.toLowerCase();
-      const description = (voice.description || '').toLowerCase();
-      const labels = voice.labels || {};
-      
-      // Gender categorization
-      if (name.includes('male') || name.includes('man') || name.includes('boy') || 
-          description.includes('male') || description.includes('man') || description.includes('boy') ||
-          labels.gender === 'male') {
-        categorized.male.push(voice);
-      }
-      
-      if (name.includes('female') || name.includes('woman') || name.includes('girl') || 
-          description.includes('female') || description.includes('woman') || description.includes('girl') ||
-          labels.gender === 'female') {
-        categorized.female.push(voice);
-      }
-
-      // Age categorization
-      if (name.includes('young') || name.includes('child') || name.includes('teen') ||
-          description.includes('young') || description.includes('child') || description.includes('teen') ||
-          labels.age === 'young') {
-        categorized.young.push(voice);
-      }
-      
-      if (name.includes('mature') || name.includes('adult') || name.includes('senior') ||
-          description.includes('mature') || description.includes('adult') || description.includes('senior') ||
-          labels.age === 'mature') {
-        categorized.mature.push(voice);
-      }
-
-      // Style categorization
-      if (name.includes('professional') || name.includes('formal') || name.includes('business') ||
-          description.includes('professional') || description.includes('formal') || description.includes('business') ||
-          labels.style === 'professional') {
-        categorized.professional.push(voice);
-      }
-      
-      if (name.includes('casual') || name.includes('friendly') || name.includes('warm') ||
-          description.includes('casual') || description.includes('friendly') || description.includes('warm') ||
-          labels.style === 'casual') {
-        categorized.casual.push(voice);
-      }
-
-      // Narrator candidates (warm, clear, professional voices)
-      if (name.includes('narrator') || name.includes('story') || name.includes('warm') || 
-          name.includes('clear') || name.includes('professional') ||
-          description.includes('narrator') || description.includes('story') || description.includes('warm') ||
-          description.includes('clear') || description.includes('professional') ||
-          labels.role === 'narrator') {
-        categorized.narrator.push(voice);
-      }
-
-      // Character candidates (expressive, diverse voices)
-      if (name.includes('character') || name.includes('expressive') || name.includes('diverse') ||
-          description.includes('character') || description.includes('expressive') || description.includes('diverse') ||
-          labels.role === 'character') {
-        categorized.characters.push(voice);
-      }
-    });
-
-    // If no specific narrator/character voices found, use some defaults
-    if (categorized.narrator.length === 0) {
-      // Add some warm, clear voices as narrator candidates
-      const warmVoices = voices.filter(voice => 
-        voice.name.toLowerCase().includes('sarah') ||
-        voice.name.toLowerCase().includes('laura') ||
-        voice.name.toLowerCase().includes('alice') ||
-        voice.name.toLowerCase().includes('matilda')
-      );
-      categorized.narrator.push(...warmVoices);
-    }
-
-    if (categorized.characters.length === 0) {
-      // Add diverse voices as character candidates
-      const diverseVoices = voices.filter(voice => 
-        voice.name.toLowerCase().includes('roger') ||
-        voice.name.toLowerCase().includes('charlie') ||
-        voice.name.toLowerCase().includes('george') ||
-        voice.name.toLowerCase().includes('liam') ||
-        voice.name.toLowerCase().includes('will') ||
-        voice.name.toLowerCase().includes('eric')
-      );
-      categorized.characters.push(...diverseVoices);
-    }
-
-    // Save categorized voices
-    const outputPath = path.join(__dirname, '..', 'data', 'voices.json');
-    const outputDir = path.dirname(outputPath);
+    const categorizedVoices = categorizeVoices(voices);
     
-    if (!fs.existsSync(outputDir)) {
-      fs.mkdirSync(outputDir, { recursive: true });
-    }
-
-    fs.writeFileSync(outputPath, JSON.stringify(categorized, null, 2));
-    console.log(`💾 Saved categorized voices to ${outputPath}`);
-
-    // Generate voiceMap.js content
-    const voiceMapContent = generateVoiceMapContent(categorized);
-    const voiceMapPath = path.join(__dirname, '..', 'src', 'config', 'voiceMap.js');
+    // Save to file
+    const outputPath = path.join(__dirname, '../src/config/voiceMap.js');
+    const voiceMapContent = generateVoiceMapContent(categorizedVoices);
     
-    fs.writeFileSync(voiceMapPath, voiceMapContent);
-    console.log(`🗺️ Updated voiceMap.js with ${categorized.all.length} voices`);
-
+    fs.writeFileSync(outputPath, voiceMapContent);
+    console.log(`✅ Voice map saved to ${outputPath}`);
+    
     // Print summary
-    console.log('\n📊 Voice Categories:');
-    Object.entries(categorized).forEach(([category, voices]) => {
-      if (Array.isArray(voices)) {
-        console.log(`  ${category}: ${voices.length} voices`);
-      }
-    });
-
+    printSummary(categorizedVoices);
+    
   } catch (error) {
     console.error('❌ Error fetching voices:', error.response?.data || error.message);
     process.exit(1);
   }
 }
 
-function generateVoiceMapContent(categorized) {
-  const { narrator, characters, all } = categorized;
-  
-  // Create mappings for GPT-generated voice_ids
-  const narratorMappings = {};
-  const characterMappings = {};
-  
-  // Map common GPT voice_ids to actual ElevenLabs voices
-  const narratorVoices = narrator.slice(0, 5); // Top 5 narrator candidates
-  const characterVoices = characters.slice(0, 10); // Top 10 character candidates
-  
-  // Narrator mappings
-  narratorMappings['narrator_01'] = narratorVoices[0]?.voice_id || '';
-  narratorMappings['warm_narrator'] = narratorVoices[0]?.voice_id || '';
-  narratorMappings['rachel'] = narratorVoices[0]?.voice_id || '';
-  
-  // Character mappings
-  characterMappings['hero_01'] = characterVoices[0]?.voice_id || '';
-  characterMappings['sidekick_01'] = characterVoices[1]?.voice_id || '';
-  characterMappings['villain_01'] = characterVoices[2]?.voice_id || '';
-  characterMappings['mentor_01'] = characterVoices[3]?.voice_id || '';
-  characterMappings['friend_01'] = characterVoices[4]?.voice_id || '';
-  
-  // Add all voices by name
-  all.forEach(voice => {
-    const name = voice.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
-    narratorMappings[name] = voice.voice_id;
-    characterMappings[name] = voice.voice_id;
+function categorizeVoices(voices) {
+  const categories = {
+    narration: [],
+    male: [],
+    female: [],
+    villain: [],
+    monster: []
+  };
+
+  voices.forEach(voice => {
+    const name = voice.name?.toLowerCase() || '';
+    const description = voice.labels?.description?.toLowerCase() || '';
+    const category = voice.labels?.category?.toLowerCase() || '';
+    const age = voice.labels?.age?.toLowerCase() || '';
+    const gender = voice.labels?.gender?.toLowerCase() || '';
+    const accent = voice.labels?.accent?.toLowerCase() || '';
+    const use_case = voice.labels?.use_case?.toLowerCase() || '';
+    
+    // Enhanced voice object
+    const enhancedVoice = {
+      id: voice.voice_id,
+      name: voice.name,
+      description: voice.labels?.description || '',
+      category: voice.labels?.category || '',
+      age: voice.labels?.age || '',
+      gender: voice.labels?.gender || '',
+      accent: voice.labels?.accent || '',
+      use_case: voice.labels?.use_case || '',
+      // Additional metadata
+      preview_url: voice.preview_url,
+      available_for_tiers: voice.available_for_tiers || [],
+      settings: voice.settings || {}
+    };
+
+    // Categorization logic
+    if (isNarrationVoice(name, description, category, use_case)) {
+      categories.narration.push(enhancedVoice);
+    } else if (isVillainVoice(name, description, category)) {
+      categories.villain.push(enhancedVoice);
+    } else if (isMonsterVoice(name, description, category)) {
+      categories.monster.push(enhancedVoice);
+    } else if (isMaleVoice(name, description, gender)) {
+      categories.male.push(enhancedVoice);
+    } else if (isFemaleVoice(name, description, gender)) {
+      categories.female.push(enhancedVoice);
+    }
   });
 
-  return `// Centralized ElevenLabs voice mapping.
-// Auto-generated from ElevenLabs API on ${new Date().toISOString()}
-// Fill these with your actual voice IDs from /api/story/voices.
-// You can reference aliases like 'antoni', 'rachel', 'adam', etc.
+  // Sort each category by age
+  Object.keys(categories).forEach(category => {
+    categories[category] = sortVoicesByAge(categories[category]);
+  });
 
-export const VOICE_ALIASES = {
-  narrator: {
-    // GPT-generated voice_id mappings
-    'narrator_01': '${narratorMappings['narrator_01']}',
-    'warm_narrator': '${narratorMappings['warm_narrator']}',
-    'rachel': '${narratorMappings['rachel']}',
-    
-    // All available voices
-${Object.entries(narratorMappings).filter(([key]) => !['narrator_01', 'warm_narrator', 'rachel'].includes(key)).map(([key, value]) => `    '${key}': '${value}',`).join('\n')}
+  return categories;
+}
+
+function isNarrationVoice(name, description, category, use_case) {
+  const narrationKeywords = [
+    'narrator', 'narrative', 'storyteller', 'announcer', 'host',
+    'neutral', 'professional', 'clear', 'warm', 'calm'
+  ];
+  
+  return narrationKeywords.some(keyword => 
+    name.includes(keyword) || 
+    description.includes(keyword) || 
+    category.includes(keyword) ||
+    use_case.includes(keyword)
+  );
+}
+
+function isVillainVoice(name, description, category) {
+  const villainKeywords = [
+    'villain', 'evil', 'dark', 'sinister', 'menacing', 'threatening',
+    'antagonist', 'bad', 'wicked', 'malicious', 'cruel'
+  ];
+  
+  return villainKeywords.some(keyword => 
+    name.includes(keyword) || 
+    description.includes(keyword) || 
+    category.includes(keyword)
+  );
+}
+
+function isMonsterVoice(name, description, category) {
+  const monsterKeywords = [
+    'monster', 'creature', 'beast', 'demon', 'ghost', 'zombie',
+    'alien', 'robot', 'mechanical', 'synthetic', 'artificial'
+  ];
+  
+  return monsterKeywords.some(keyword => 
+    name.includes(keyword) || 
+    description.includes(keyword) || 
+    category.includes(keyword)
+  );
+}
+
+function isMaleVoice(name, description, gender) {
+  return gender === 'male' || 
+         name.includes('male') || 
+         description.includes('male') ||
+         description.includes('man') ||
+         description.includes('boy');
+}
+
+function isFemaleVoice(name, description, gender) {
+  return gender === 'female' || 
+         name.includes('female') || 
+         description.includes('female') ||
+         description.includes('woman') ||
+         description.includes('girl');
+}
+
+function sortVoicesByAge(voices) {
+  const ageOrder = {
+    'young': 1,
+    'teen': 2,
+    'young adult': 3,
+    'adult': 4,
+    'middle-aged': 5,
+    'elderly': 6,
+    'old': 6
+  };
+
+  return voices.sort((a, b) => {
+    const ageA = ageOrder[a.age] || 4; // Default to adult
+    const ageB = ageOrder[b.age] || 4;
+    return ageA - ageB;
+  });
+}
+
+function generateVoiceMapContent(categorizedVoices) {
+  return `// Auto-generated voice mapping from ElevenLabs API
+// Generated on: ${new Date().toISOString()}
+
+export const voiceMap = {
+  // Narration voices (neutral, professional storytellers)
+  narration: {
+    young: ${JSON.stringify(categorizedVoices.narration.filter(v => v.age === 'young'), null, 4)},
+    teen: ${JSON.stringify(categorizedVoices.narration.filter(v => v.age === 'teen'), null, 4)},
+    adult: ${JSON.stringify(categorizedVoices.narration.filter(v => v.age === 'adult' || v.age === 'young adult'), null, 4)},
+    elderly: ${JSON.stringify(categorizedVoices.narration.filter(v => v.age === 'elderly' || v.age === 'old'), null, 4)},
+    all: ${JSON.stringify(categorizedVoices.narration, null, 4)}
   },
-  characters: {
-    // GPT-generated voice_id mappings
-    'hero_01': '${characterMappings['hero_01']}',
-    'sidekick_01': '${characterMappings['sidekick_01']}',
-    'villain_01': '${characterMappings['villain_01']}',
-    'mentor_01': '${characterMappings['mentor_01']}',
-    'friend_01': '${characterMappings['friend_01']}',
-    
-    // All available voices
-${Object.entries(characterMappings).filter(([key]) => !['hero_01', 'sidekick_01', 'villain_01', 'mentor_01', 'friend_01'].includes(key)).map(([key, value]) => `    '${key}': '${value}',`).join('\n')}
+
+  // Male character voices
+  male: {
+    young: ${JSON.stringify(categorizedVoices.male.filter(v => v.age === 'young'), null, 4)},
+    teen: ${JSON.stringify(categorizedVoices.male.filter(v => v.age === 'teen'), null, 4)},
+    adult: ${JSON.stringify(categorizedVoices.male.filter(v => v.age === 'adult' || v.age === 'young adult'), null, 4)},
+    elderly: ${JSON.stringify(categorizedVoices.male.filter(v => v.age === 'elderly' || v.age === 'old'), null, 4)},
+    all: ${JSON.stringify(categorizedVoices.male, null, 4)}
   },
-};
 
-export const DEFAULTS = {
-  narrator: process.env.ELEVENLABS_DEFAULT_VOICE_ID || '${narratorMappings['narrator_01']}',
-};
+  // Female character voices
+  female: {
+    young: ${JSON.stringify(categorizedVoices.female.filter(v => v.age === 'young'), null, 4)},
+    teen: ${JSON.stringify(categorizedVoices.female.filter(v => v.age === 'teen'), null, 4)},
+    adult: ${JSON.stringify(categorizedVoices.female.filter(v => v.age === 'adult' || v.age === 'young adult'), null, 4)},
+    elderly: ${JSON.stringify(categorizedVoices.female.filter(v => v.age === 'elderly' || v.age === 'old'), null, 4)},
+    all: ${JSON.stringify(categorizedVoices.female, null, 4)}
+  },
 
-const looksLikeId = (value) => typeof value === 'string' && value.length >= 12 && !/\\s/.test(value);
+  // Villain voices (human antagonists)
+  villain: {
+    young: ${JSON.stringify(categorizedVoices.villain.filter(v => v.age === 'young'), null, 4)},
+    teen: ${JSON.stringify(categorizedVoices.villain.filter(v => v.age === 'teen'), null, 4)},
+    adult: ${JSON.stringify(categorizedVoices.villain.filter(v => v.age === 'adult' || v.age === 'young adult'), null, 4)},
+    elderly: ${JSON.stringify(categorizedVoices.villain.filter(v => v.age === 'elderly' || v.age === 'old'), null, 4)},
+    all: ${JSON.stringify(categorizedVoices.villain, null, 4)}
+  },
 
-export const resolveVoiceId = (nameOrId, category = 'narrator') => {
-  if (!nameOrId) {
-    return VOICE_ALIASES[category]?.default || DEFAULTS[category] || '';
+  // Monster voices (non-human creatures)
+  monster: {
+    young: ${JSON.stringify(categorizedVoices.monster.filter(v => v.age === 'young'), null, 4)},
+    teen: ${JSON.stringify(categorizedVoices.monster.filter(v => v.age === 'teen'), null, 4)},
+    adult: ${JSON.stringify(categorizedVoices.monster.filter(v => v.age === 'adult' || v.age === 'young adult'), null, 4)},
+    elderly: ${JSON.stringify(categorizedVoices.monster.filter(v => v.age === 'elderly' || v.age === 'old'), null, 4)},
+    all: ${JSON.stringify(categorizedVoices.monster, null, 4)}
   }
-
-  // If it's already an ID, return as-is
-  if (looksLikeId(nameOrId)) return nameOrId;
-
-  const key = String(nameOrId).toLowerCase().trim();
-  const byCategory = VOICE_ALIASES[category] || {};
-  return byCategory[key] || DEFAULTS[category] || '';
 };
 
-export default {
-  VOICE_ALIASES,
-  DEFAULTS,
-  resolveVoiceId,
-};`;
+// Helper functions for voice selection
+export const getVoiceByCategoryAndAge = (category, age) => {
+  const voices = voiceMap[category]?.[age] || voiceMap[category]?.all || [];
+  return voices.length > 0 ? voices[Math.floor(Math.random() * voices.length)] : null;
+};
+
+export const getRandomVoice = (category) => {
+  const voices = voiceMap[category]?.all || [];
+  return voices.length > 0 ? voices[Math.floor(Math.random() * voices.length)] : null;
+};
+
+export const getVoiceById = (voiceId) => {
+  for (const category in voiceMap) {
+    for (const ageGroup in voiceMap[category]) {
+      const voice = voiceMap[category][ageGroup].find(v => v.id === voiceId);
+      if (voice) return voice;
+    }
+  }
+  return null;
+};
+
+// Voice statistics
+export const getVoiceStats = () => {
+  const stats = {};
+  for (const category in voiceMap) {
+    stats[category] = {
+      total: voiceMap[category].all.length,
+      byAge: {}
+    };
+    for (const ageGroup in voiceMap[category]) {
+      if (ageGroup !== 'all') {
+        stats[category].byAge[ageGroup] = voiceMap[category][ageGroup].length;
+      }
+    }
+  }
+  return stats;
+};
+`;
+}
+
+function printSummary(categorizedVoices) {
+  console.log('\n📊 Voice Categories Summary:');
+  console.log('================================');
+  
+  Object.keys(categorizedVoices).forEach(category => {
+    const total = categorizedVoices[category].length;
+    console.log(`\n${category.toUpperCase()}: ${total} voices`);
+    
+    const ageGroups = {};
+    categorizedVoices[category].forEach(voice => {
+      const age = voice.age || 'unknown';
+      ageGroups[age] = (ageGroups[age] || 0) + 1;
+    });
+    
+    Object.keys(ageGroups).forEach(age => {
+      console.log(`  - ${age}: ${ageGroups[age]} voices`);
+    });
+  });
+  
+  console.log('\n✅ Voice mapping completed!');
 }
 
 // Run the script
-fetchVoices();
+fetchAllVoices();

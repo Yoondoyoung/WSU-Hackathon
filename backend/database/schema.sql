@@ -119,3 +119,4 @@ CREATE TRIGGER update_stories_updated_at BEFORE UPDATE ON stories
 
 CREATE TRIGGER update_story_pages_updated_at BEFORE UPDATE ON story_pages
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
