@@ -27,6 +27,13 @@ import {
 
 const router = Router();
 
+// Debug middleware to log all requests
+router.use((req, res, next) => {
+  console.log(`[storyRoutes] ${req.method} ${req.originalUrl} - Request received`);
+  console.log(`[storyRoutes] Base URL: ${req.baseUrl}, Path: ${req.path}`);
+  next();
+});
+
 // Session management
 router.post('/session', createNewSession);
 router.get('/session/:sessionId/stories', getStoriesBySessionId);
@@ -35,14 +42,8 @@ router.get('/session/:sessionId/stats', getSessionStatistics);
 // Story management
 router.post('/generate', generateStory);
 router.post('/build', buildStoryPipeline);
-router.get('/story/:storyId/status', (req, res, next) => {
-  console.log(`[storyRoutes] GET /story/${req.params.storyId}/status - Route matched`);
-  next();
-}, getStoryStatus);
-router.get('/story/:storyId/logs', getStoryGenerationLogs);
-router.get('/story/:storyId', getStoryById);
 
-// Legacy endpoints
+// Legacy endpoints (must come before parameterized routes)
 router.post('/narrate', ENABLE_AUDIO && ENABLE_ELEVEN_ENDPOINTS ? generateNarration : disabledHandler('Narration'));
 router.post('/illustrate', ENABLE_IMAGES ? generateIllustrations : disabledHandler('Illustration'));
 router.post('/generate-images', ENABLE_IMAGES ? generateSceneImages : disabledHandler('Generate Images'));
@@ -50,6 +51,23 @@ router.post('/bundle', ENABLE_BUNDLE ? generateStoryBundle : disabledHandler('Bu
 router.get('/voices', ENABLE_ELEVEN_ENDPOINTS ? listElevenVoices : disabledHandler('Voices'));
 router.get('/narrator-voices', listNarratorVoices);
 router.post('/narrate-pages', ENABLE_AUDIO && ENABLE_ELEVEN_ENDPOINTS ? narratePages : disabledHandler('Narrate pages'));
-router.get('/story/:storyId/page/:pageNumber', getStoryPage);
+
+// Parameterized routes (must come after specific routes)
+router.get('/:storyId/status', (req, res, next) => {
+  console.log(`[storyRoutes] GET /${req.params.storyId}/status - Route matched`);
+  next();
+}, getStoryStatus);
+
+router.get('/:storyId/logs', (req, res, next) => {
+  console.log(`[storyRoutes] GET /${req.params.storyId}/logs - Route matched`);
+  next();
+}, getStoryGenerationLogs);
+
+router.get('/:storyId/page/:pageNumber', getStoryPage);
+
+router.get('/:storyId', (req, res, next) => {
+  console.log(`[storyRoutes] GET /${req.params.storyId} - Route matched`);
+  next();
+}, getStoryById);
 
 export default router;

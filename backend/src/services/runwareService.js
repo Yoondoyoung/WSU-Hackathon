@@ -52,6 +52,7 @@ export const generateSceneIllustration = async ({
   aspectRatio = '3:2',
   seed,
   characterReferences = [],
+  storyId = null,
 }) => {
   console.log(`🎨 Runware: Starting image generation for page ${pageNumber}...`, { 
     prompt: prompt.substring(0, 100) + '...', 
@@ -94,6 +95,28 @@ export const generateSceneIllustration = async ({
     console.log(`🎨 Runware: Calling Runware API for page ${pageNumber}...`);
     const taskUUID = uuidv4();
     const dimensions = getAspectRatioDimensions(aspectRatio);
+    
+    // Use provided seed or generate a consistent seed based on story/page
+    // Runware API requires seed to be between 1 and 2147483647
+    let finalSeed = seed;
+    if (!finalSeed) {
+      if (storyId) {
+        // Create a consistent seed based on story ID and page number
+        // This ensures same story has consistent style, but different pages have variation
+        const storyHash = storyId.split('-').join('').substring(0, 8);
+        const storyNum = parseInt(storyHash, 16) || 12345;
+        // Keep within valid range (1 to 2147483647)
+        finalSeed = ((storyNum % 1000000) + (pageNumber * 1000)) % 2147483647;
+        if (finalSeed === 0) finalSeed = 1; // Ensure minimum value of 1
+      } else {
+        // Fallback to page-based seed within valid range
+        finalSeed = ((pageNumber * 12345) % 2147483647) + 1;
+      }
+    }
+    
+    // Ensure seed is within valid range
+    if (finalSeed < 1) finalSeed = 1;
+    if (finalSeed > 2147483647) finalSeed = finalSeed % 2147483647;
     const payload = [
       {
         taskUUID: taskUUID,
@@ -102,7 +125,7 @@ export const generateSceneIllustration = async ({
         outputFormat: 'JPEG',
         width: dimensions.width,
         height: dimensions.height,
-        seed: seed || undefined,
+        seed: finalSeed,
         includeCost: false,
         model: 'google:4@1',
         positivePrompt: enhancedPrompt,

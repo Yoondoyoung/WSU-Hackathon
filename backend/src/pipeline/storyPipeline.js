@@ -3,7 +3,7 @@ import { synthesizeSpeech, generateSoundEffect } from '../services/elevenLabsSer
 import { generateSceneIllustration } from '../services/runwareService.js';
 import { mixSequentialAudio, mixAudioWithSFX } from '../services/audioMixerService.js';
 import { saveBase64Asset } from '../utils/storage.js';
-import { saveAudioToDatabase } from '../services/storyStorageService.js';
+import { saveAudioToDatabase, updateStoryPage } from '../services/storyStorageService.js';
 import {
   setReferenceImage,
   getReferenceImage,
@@ -77,6 +77,7 @@ const generateIllustration = async ({ storyId, page, prompt, characterReferences
     prompt,
     pageNumber: page,
     characterReferences,
+    storyId,
   });
 
   // Set reference image for character consistency (first image only)
@@ -183,6 +184,8 @@ export const processScene = async ({ storyId, page, timeline, imagePrompt, narra
           publicPath: audioAsset.asset_url,
           filePath: null, // No local file
         };
+        // Save audio URL to database
+        await updateStoryPage(storyId, page, { audio_url: finalAudio.publicUrl });
         setPageAssets(storyId, page, { audio: finalAudio.publicUrl });
         appendPageLog(storyId, page, 'Sequential audio mix complete and saved to database.');
         console.log(`[pipeline] Scene ${page}: audio mix saved to database.`);
@@ -203,9 +206,11 @@ export const processScene = async ({ storyId, page, timeline, imagePrompt, narra
       console.log(`[pipeline] Scene ${page}: requesting illustration.`);
       illustration = await generateIllustration({ storyId, page, prompt: imagePrompt, characterReferences });
       if (illustration) {
+        // Save image URL to database
+        await updateStoryPage(storyId, page, { image_url: illustration.publicUrl });
         setPageAssets(storyId, page, { image: illustration.publicUrl });
         appendPageLog(storyId, page, 'Illustration complete.');
-        console.log(`[pipeline] Scene ${page}: illustration ready.`);
+        console.log(`[pipeline] Scene ${page}: illustration ready and saved to database.`);
       }
     } else if (!imagePrompt) {
       appendPageLog(storyId, page, 'No image prompt provided; skipping illustration.');

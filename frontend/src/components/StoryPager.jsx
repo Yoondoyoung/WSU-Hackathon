@@ -42,8 +42,8 @@ const StoryPager = ({ story, pages }) => {
     setImageError(false); // Reset image error when changing pages
   };
 
-  // 우선순위: Runware URL > 로컬 URL > 기타
-  const imageSrc = current?.imageUrl || current?.assets?.image || current?.image;
+  // 우선순위: assets.image (DB URL) > imageUrl > image
+  const imageSrc = current?.assets?.image || current?.imageUrl || current?.image;
   const audioSrc = current?.audioUrl || current?.assets?.audio;
   const status = current?.status || 'pending';
   const latestLog = getLatestLog(current);
@@ -97,16 +97,36 @@ const StoryPager = ({ story, pages }) => {
             ) : (
               <div className="flex h-full w-full items-center justify-center p-4 text-sm text-slate-600">
                 <div className="text-center">
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    {imageError ? 'Image failed to load' : 'Illustration prompt'}
-                  </div>
-                  <p className="whitespace-pre-line text-xs">
-                    {current.imagePrompt || current.image_prompt || 'No prompt provided.'}
-                  </p>
-                  {imageSrc && imageError && (
-                    <p className="mt-2 text-xs text-red-500">
-                      URL: {imageSrc}
-                    </p>
+                  {status === 'processing' ? (
+                    <>
+                      <div className="mb-4">
+                        <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-slate-300 border-r-slate-600"></div>
+                      </div>
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Generating Image...
+                      </div>
+                      <p className="text-xs text-slate-400">
+                        Creating illustration for this scene
+                      </p>
+                    </>
+                  ) : imageError ? (
+                    <>
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-red-500">
+                        Image failed to load
+                      </div>
+                      <p className="mt-2 text-xs text-red-500">
+                        URL: {imageSrc}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        No image available
+                      </div>
+                      <p className="whitespace-pre-line text-xs">
+                        {current.imagePrompt || current.image_prompt || 'No prompt provided.'}
+                      </p>
+                    </>
                   )}
                 </div>
               </div>

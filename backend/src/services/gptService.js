@@ -337,6 +337,7 @@ const applyCharacterConsistency = (story, rawCharacterBible) => {
         const prompt = page.imagePrompt || page.image_prompt;
         const consistencyNote = `Consistent characters: ${descriptorText}.`;
         if (prompt?.includes('Consistent characters:')) {
+          // Already has consistency note, don't add again
           page.imagePrompt = prompt;
         } else if (prompt) {
           page.imagePrompt = `${prompt.trim()} ${consistencyNote}`;
