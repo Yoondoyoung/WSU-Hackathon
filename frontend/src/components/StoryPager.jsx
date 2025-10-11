@@ -16,6 +16,7 @@ const getLatestLog = (page) => {
 
 const StoryPager = ({ story, pages }) => {
   const [index, setIndex] = useState(0);
+  const [imageError, setImageError] = useState(false);
   const total = pages?.length || 0;
 
   const current = useMemo(() => {
@@ -32,11 +33,18 @@ const StoryPager = ({ story, pages }) => {
     );
   }
 
-  const goPrev = () => setIndex((i) => Math.max(i - 1, 0));
-  const goNext = () => setIndex((i) => Math.min(i + 1, total - 1));
+  const goPrev = () => {
+    setIndex((i) => Math.max(i - 1, 0));
+    setImageError(false); // Reset image error when changing pages
+  };
+  const goNext = () => {
+    setIndex((i) => Math.min(i + 1, total - 1));
+    setImageError(false); // Reset image error when changing pages
+  };
 
-  const imageSrc = current?.assets?.image || current?.imageUrl || current?.image;
-  const audioSrc = current?.assets?.audio || current?.audioUrl;
+  // 우선순위: Runware URL > 로컬 URL > 기타
+  const imageSrc = current?.imageUrl || current?.assets?.image || current?.image;
+  const audioSrc = current?.audioUrl || current?.assets?.audio;
   const status = current?.status || 'pending';
   const latestLog = getLatestLog(current);
 
@@ -64,24 +72,37 @@ const StoryPager = ({ story, pages }) => {
       </header>
 
       {current && (
-        <article className="grid grid-cols-1 gap-4 rounded-lg border border-slate-200 p-4 md:grid-cols-2">
-          <div className="aspect-[4/3] overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
-            {imageSrc ? (
+        <article className="flex flex-col gap-4 rounded-lg border border-slate-200 p-4">
+          {/* 상단: 이미지 */}
+          <div className="aspect-[16/9] overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
+            {imageSrc && !imageError ? (
               <img
                 src={imageSrc}
                 alt={current.title || `Scene ${current.pageNumber || current.page}`}
                 className="h-full w-full object-cover"
+                onError={() => setImageError(true)}
+                onLoad={() => setImageError(false)}
               />
             ) : (
-              <div className="h-full w-full p-4 text-sm text-slate-600">
-                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Illustration prompt</div>
-                <p className="whitespace-pre-line">
-                  {current.imagePrompt || current.image_prompt || 'No prompt provided.'}
-                </p>
+              <div className="flex h-full w-full items-center justify-center p-4 text-sm text-slate-600">
+                <div className="text-center">
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    {imageError ? 'Image failed to load' : 'Illustration prompt'}
+                  </div>
+                  <p className="whitespace-pre-line text-xs">
+                    {current.imagePrompt || current.image_prompt || 'No prompt provided.'}
+                  </p>
+                  {imageSrc && imageError && (
+                    <p className="mt-2 text-xs text-red-500">
+                      URL: {imageSrc}
+                    </p>
+                  )}
+                </div>
               </div>
             )}
           </div>
 
+          {/* 중단: 스토리 */}
           <div className="flex flex-col gap-3">
             <header className="flex items-center justify-between gap-2">
               <span className="text-xs font-semibold uppercase tracking-wide text-primary">
@@ -94,29 +115,31 @@ const StoryPager = ({ story, pages }) => {
             </header>
 
             {Array.isArray(current.timeline) && current.timeline.length > 0 ? (
-              <ul className="space-y-2">
-                {current.timeline.map((entry, i) => (
-                  <li
-                    key={`${current.pageNumber || current.page}-${i}`}
-                    className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"
-                  >
-                    {entry.type === 'character' ? (
-                      <span className="font-semibold text-primary">{entry.name || 'Character'}: </span>
-                    ) : null}
-                    {entry.text || entry.description}
-                  </li>
-                ))}
-              </ul>
+              <div className="max-h-48 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <ul className="space-y-2">
+                  {current.timeline.map((entry, i) => (
+                    <li
+                      key={`${current.pageNumber || current.page}-${i}`}
+                      className="rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700"
+                    >
+                      {entry.type === 'character' ? (
+                        <span className="font-semibold text-primary">{entry.name || 'Character'}: </span>
+                      ) : entry.type === 'narration' ? (
+                        <span className="font-semibold text-slate-600">Narrator: </span>
+                      ) : entry.type === 'sfx' ? (
+                        <span className="font-semibold text-amber-600">SFX: </span>
+                      ) : null}
+                      {entry.text || entry.description}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ) : (
-              <p className="whitespace-pre-line text-sm leading-relaxed text-slate-700">
-                {current.text || current.summary}
-              </p>
-            )}
-
-            {audioSrc && (
-              <audio controls className="mt-2 w-full" preload="auto">
-                <source src={audioSrc} type="audio/mpeg" />
-              </audio>
+              <div className="max-h-48 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <p className="whitespace-pre-line text-sm leading-relaxed text-slate-700">
+                  {current.text || current.summary}
+                </p>
+              </div>
             )}
 
             {latestLog && (
@@ -125,6 +148,28 @@ const StoryPager = ({ story, pages }) => {
               </p>
             )}
           </div>
+
+          {/* 하단: 오디오 재생 바 */}
+          {audioSrc && (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div className="mb-2 flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                <span className="text-xs font-semibold text-slate-600">Audio</span>
+              </div>
+              <audio 
+                controls 
+                className="w-full" 
+                preload="auto"
+                style={{ 
+                  height: '40px',
+                  borderRadius: '8px'
+                }}
+              >
+                <source src={audioSrc} type="audio/mpeg" />
+                Your browser does not support the audio element.
+              </audio>
+            </div>
+          )}
         </article>
       )}
     </section>

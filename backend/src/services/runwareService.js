@@ -10,11 +10,42 @@ const requireApiKey = () => {
   }
 };
 
+const getArtStyleDescription = (artStyle) => {
+  const styleMap = {
+    'storybook': 'storybook illustration style, warm and inviting',
+    'watercolor': 'watercolor painting style, soft and flowing',
+    'digital-painting': 'digital painting style, detailed and vibrant',
+    'paper-cut': 'paper cut art style, layered and dimensional',
+    'comic': 'comic book art style, bold and dynamic',
+    'photorealistic': 'photorealistic style, highly detailed and lifelike',
+    'oil-painting': 'oil painting style, rich textures and colors',
+    'sketch': 'pencil sketch style, artistic and expressive',
+    'anime': 'anime art style, colorful and stylized',
+    'cartoon': 'cartoon art style, fun and playful',
+    'cinematic': 'cinematic art style, dramatic lighting and composition',
+    'fantasy-art': 'fantasy art style, magical and ethereal'
+  };
+  
+  return styleMap[artStyle] || 'storybook illustration style, warm and inviting';
+};
+
+const getAspectRatioDimensions = (aspectRatio) => {
+  const ratioMap = {
+    '1:1': { width: 1024, height: 1024 },
+    '4:3': { width: 1024, height: 768 },
+    '3:2': { width: 1024, height: 683 },
+    '16:9': { width: 1024, height: 576 },
+    '21:9': { width: 1024, height: 439 }
+  };
+  
+  return ratioMap[aspectRatio] || { width: 1024, height: 683 }; // Default to 3:2
+};
+
 export const generateSceneIllustration = async ({
   prompt,
   pageNumber,
-  artStyle = 'cinematic illustration',
-  aspectRatio = '16:9',
+  artStyle = 'Storybook',
+  aspectRatio = '3:2',
   seed,
   referenceImage,
 }) => {
@@ -30,20 +61,22 @@ export const generateSceneIllustration = async ({
 
   try {
     // Enhance prompt for better consistency and quality (no negative prompt needed)
+    const artStyleDescription = getArtStyleDescription(artStyle);
     const enhancedPrompt = referenceImage 
-      ? `${prompt}. Maintain consistent character appearance and art style from previous scenes. High quality digital illustration, clean composition, professional artwork.`
-      : `${prompt}. High quality digital illustration, consistent character design, storybook art style, clean composition, professional artwork, vibrant colors, detailed rendering.`;
+      ? `${prompt}. Maintain consistent character appearance and art style from previous scenes. ${artStyleDescription}, high quality digital illustration, clean composition, professional artwork.`
+      : `${prompt}. ${artStyleDescription}, high quality digital illustration, consistent character design, clean composition, professional artwork, vibrant colors, detailed rendering.`;
 
     console.log(`🎨 Runware: Calling Runware API for page ${pageNumber}...`);
     const taskUUID = uuidv4();
+    const dimensions = getAspectRatioDimensions(aspectRatio);
     const payload = [
       {
         taskUUID: taskUUID,
         taskType: 'imageInference',
         numberResults: 1,
         outputFormat: 'JPEG',
-        width: 1024,
-        height: 1024,
+        width: dimensions.width,
+        height: dimensions.height,
         seed: seed || undefined,
         includeCost: false,
         model: 'bytedance:5@0',
@@ -58,6 +91,8 @@ export const generateSceneIllustration = async ({
       model: 'bytedance:5@0 (Seedream 4.0)',
       outputFormat: payload[0].outputFormat,
       dimensions: `${payload[0].width}x${payload[0].height}`,
+      aspectRatio: aspectRatio,
+      artStyle: artStyle,
       seed: payload[0].seed
     });
 
@@ -74,9 +109,13 @@ export const generateSceneIllustration = async ({
     );
 
     const { data } = response;
+    console.log(`🎨 Runware: Raw response data for page ${pageNumber}:`, data);
+    
     const result = Array.isArray(data) ? data[0] : data;
-    console.log(`🎨 Runware: Received response for page ${pageNumber}:`, { 
-      hasImageURL: !!result?.imageURL, 
+    console.log(`🎨 Runware: Processed result for page ${pageNumber}:`, result);
+    console.log(`🎨 Runware: ImageURL check for page ${pageNumber}:`, {
+      hasImageURL: !!result?.imageURL,
+      imageURL: result?.imageURL,
       imageUUID: result?.imageUUID,
       cost: result?.cost,
       seed: result?.seed

@@ -24,8 +24,28 @@ const defaultValues = {
 };
 
 const genres = ['Adventure', 'Fantasy', 'Mystery', 'Drama', 'Sci-Fi', 'Thriller', 'Romance', 'Comedy'];
-const aspectRatios = ['1:1', '4:3', '3:2', '16:9'];
-const artStyles = ['storybook', 'watercolor', 'digital-painting', 'paper-cut', 'comic', 'photorealistic', 'oil-painting', 'sketch'];
+const aspectRatios = [
+  { value: '1:1', label: 'Square (1:1)' },
+  { value: '4:3', label: 'Standard (4:3)' },
+  { value: '3:2', label: 'Classic (3:2)' },
+  { value: '16:9', label: 'Widescreen (16:9)' },
+  { value: '21:9', label: 'Ultrawide (21:9)' }
+];
+
+const artStyles = [
+  { value: 'storybook', label: 'Storybook' },
+  { value: 'watercolor', label: 'Watercolor' },
+  { value: 'digital-painting', label: 'Digital Painting' },
+  { value: 'paper-cut', label: 'Paper Cut' },
+  { value: 'comic', label: 'Comic Book' },
+  { value: 'photorealistic', label: 'Photorealistic' },
+  { value: 'oil-painting', label: 'Oil Painting' },
+  { value: 'sketch', label: 'Sketch' },
+  { value: 'anime', label: 'Anime' },
+  { value: 'cartoon', label: 'Cartoon' },
+  { value: 'cinematic', label: 'Cinematic' },
+  { value: 'fantasy-art', label: 'Fantasy Art' }
+];
 
 const parseSupportingCharacters = (value) => {
   if (!value) {
@@ -236,27 +256,6 @@ export const StoryForm = ({ onGenerate, isLoading, latestError, submitLabel = 'C
           />
         </label>
 
-        <label className="flex flex-col gap-2">
-          <span className="text-sm font-medium text-slate-700">Art style</span>
-          <select {...register('artStyle')}>
-            {artStyles.map((style) => (
-              <option key={style} value={style}>
-                {style}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="flex flex-col gap-2">
-          <span className="text-sm font-medium text-slate-700">Aspect ratio</span>
-          <select {...register('aspectRatio')}>
-            {aspectRatios.map((ratio) => (
-              <option key={ratio} value={ratio}>
-                {ratio}
-              </option>
-            ))}
-          </select>
-        </label>
 
       <label className="flex flex-col gap-2">
         <span className="text-sm font-medium text-slate-700">Narrator voice</span>
@@ -310,6 +309,36 @@ export const StoryForm = ({ onGenerate, isLoading, latestError, submitLabel = 'C
               placeholder={'Name | gender | trait, trait\nExample: Sam | female | loyal, inventive'}
             />
             <span className="text-xs text-slate-400">One per line: Name | gender | traits (gender: male/female/non-binary)</span>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset className="space-y-4 rounded-lg border border-slate-200 p-4">
+        <legend className="text-sm font-semibold text-slate-700">Image Settings</legend>
+        
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <label className="flex flex-col gap-2">
+            <span className="text-sm font-medium text-slate-700">Art style</span>
+            <select {...register('artStyle')}>
+              {artStyles.map((style) => (
+                <option key={style.value} value={style.value}>
+                  {style.label}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs text-slate-400">Choose the visual style for your story illustrations</span>
+          </label>
+
+          <label className="flex flex-col gap-2">
+            <span className="text-sm font-medium text-slate-700">Aspect ratio</span>
+            <select {...register('aspectRatio')}>
+              {aspectRatios.map((ratio) => (
+                <option key={ratio.value} value={ratio.value}>
+                  {ratio.label}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs text-slate-400">Choose the image dimensions for your illustrations</span>
           </label>
         </div>
       </fieldset>
