@@ -138,7 +138,7 @@ export const generateSceneIllustration = async ({
         height: dimensions.height,
         seed: seed || undefined,
         includeCost: false,
-        model: 'bytedance:5@0',
+        model: 'google:4@1',
         positivePrompt: enhancedPrompt,
         referenceImages: referenceImages.length > 0 ? referenceImages : undefined,
       }
@@ -148,7 +148,7 @@ export const generateSceneIllustration = async ({
       taskUUID: taskUUID,
       referenceImagesCount: referenceImages.length,
       promptLength: enhancedPrompt.length,
-      model: 'bytedance:5@0 (Seedream 4.0)',
+      model: 'google:4@1 (NanoBanan)',
       outputFormat: payload[0].outputFormat,
       dimensions: `${payload[0].width}x${payload[0].height}`,
       aspectRatio: aspectRatio,
