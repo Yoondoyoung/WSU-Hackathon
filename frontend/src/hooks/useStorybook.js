@@ -7,7 +7,7 @@ import {
 
 const isSceneDone = (page) => page.status === 'completed' || page.status === 'failed';
 
-export const useStorybook = () => {
+export const useStorybook = (onStoryCompleted) => {
   const [story, setStory] = useState(null);
   const [pages, setPages] = useState([]);
   const [status, setStatus] = useState('idle');
@@ -111,6 +111,10 @@ export const useStorybook = () => {
         if (done) {
           stopPolling();
           setStatus('idle');
+          // Call callback when story generation is completed
+          if (onStoryCompleted) {
+            onStoryCompleted();
+          }
         }
       } catch (error) {
         stopPolling();

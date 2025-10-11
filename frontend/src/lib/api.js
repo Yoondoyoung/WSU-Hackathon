@@ -106,6 +106,53 @@ export const fetchNarratorVoices = async () => {
   }
 };
 
+// Session management
+export const createSession = async () => {
+  try {
+    const { data } = await client.post('/story/session');
+    return data;
+  } catch (error) {
+    throw new Error(unwrap(error));
+  }
+};
+
+export const getStoriesBySession = async (sessionId) => {
+  try {
+    const { data } = await client.get(`/story/session/${sessionId}/stories`);
+    return data;
+  } catch (error) {
+    throw new Error(unwrap(error));
+  }
+};
+
+export const getSessionStats = async (sessionId) => {
+  try {
+    const { data } = await client.get(`/story/session/${sessionId}/stats`);
+    return data;
+  } catch (error) {
+    throw new Error(unwrap(error));
+  }
+};
+
+// Story management
+export const getStoryById = async (storyId) => {
+  try {
+    const { data } = await client.get(`/story/story/${storyId}`);
+    return data;
+  } catch (error) {
+    throw new Error(unwrap(error));
+  }
+};
+
+export const getStoryLogs = async (storyId) => {
+  try {
+    const { data } = await client.get(`/story/story/${storyId}/logs`);
+    return data;
+  } catch (error) {
+    throw new Error(unwrap(error));
+  }
+};
+
 export default {
   generateStory,
   generateBundle,
