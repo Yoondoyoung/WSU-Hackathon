@@ -1,7 +1,9 @@
+import axios from 'axios';
 import { synthesizeSpeech, generateSoundEffect } from '../services/elevenLabsService.js';
 import { generateSceneIllustration } from '../services/runwareService.js';
 import { mixSequentialAudio, mixAudioWithSFX } from '../services/audioMixerService.js';
 import { saveBase64Asset } from '../utils/storage.js';
+import { saveAudioToDatabase } from '../services/storyStorageService.js';
 import {
   setReferenceImage,
   getReferenceImage,
@@ -77,18 +79,27 @@ const generateIllustration = async ({ storyId, page, prompt }) => {
     referenceImage,
   });
 
-  if (!referenceImage && illustration?.imageBase64) {
-    setReferenceImage(storyId, illustration.imageBase64);
+  if (!referenceImage && illustration?.imageURL) {
+    // For reference images, we still need to download and store base64
+    // This is a limitation of the current reference image system
+    try {
+      const imageResponse = await axios.get(illustration.imageURL, {
+        responseType: 'arraybuffer',
+        timeout: 30000,
+      });
+      const imageBase64 = Buffer.from(imageResponse.data).toString('base64');
+      setReferenceImage(storyId, imageBase64);
+    } catch (error) {
+      console.warn(`[pipeline] Failed to download reference image for story ${storyId}:`, error.message);
+    }
   }
 
-  const asset = await saveBase64Asset({
-    data: illustration.imageBase64,
-    extension: 'png',
-    directory: 'images',
-    fileName: `page-${page}.png`,
-  });
-
-  return asset;
+  // Return URL directly instead of saving to local storage
+  return {
+    publicUrl: illustration.imageURL,
+    publicPath: illustration.imageURL, // Use URL as path for consistency
+    filePath: null, // No local file
+  };
 };
 
 export const processScene = async ({ storyId, page, timeline, imagePrompt, narratorVoiceId }) => {
@@ -164,15 +175,16 @@ export const processScene = async ({ storyId, page, timeline, imagePrompt, narra
       appendPageLog(storyId, page, 'Stitching narration, dialogue, and sound effects in sequence.');
       const mixedBuffer = await mixSequentialAudio(audioBuffers);
       if (mixedBuffer) {
-        finalAudio = await saveBase64Asset({
-          data: mixedBuffer.toString('base64'),
-          extension: 'mp3',
-          directory: 'audio/mixed',
-          fileName: `scene-${page}.mp3`,
-        });
+        // Save audio to database instead of local storage
+        const audioAsset = await saveAudioToDatabase(storyId, page, mixedBuffer, 'audio/mpeg');
+        finalAudio = {
+          publicUrl: audioAsset.asset_url,
+          publicPath: audioAsset.asset_url,
+          filePath: null, // No local file
+        };
         setPageAssets(storyId, page, { audio: finalAudio.publicUrl });
-        appendPageLog(storyId, page, 'Sequential audio mix complete.');
-        console.log(`[pipeline] Scene ${page}: audio mix saved.`);
+        appendPageLog(storyId, page, 'Sequential audio mix complete and saved to database.');
+        console.log(`[pipeline] Scene ${page}: audio mix saved to database.`);
       }
     } catch (error) {
       hasError = true;

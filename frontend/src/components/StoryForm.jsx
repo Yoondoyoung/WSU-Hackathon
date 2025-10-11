@@ -5,6 +5,7 @@ import { fetchNarratorVoices } from '../lib/api.js';
 
 const defaultValues = {
   theme: 'Friendship between unlikely heroes',
+  storyDetails: '', // User's custom story details
   genre: 'Adventure',
   targetAgeGroup: 'General',
   storyLength: 6,
@@ -138,6 +139,7 @@ export const StoryForm = ({ onGenerate, isLoading, latestError, submitLabel = 'C
 
     const payload = {
       theme: values.theme,
+      storyDetails: values.storyDetails || undefined, // User's custom story details
       genre: values.genre,
       targetAgeGroup: values.targetAgeGroup,
       storyLength: Number(values.storyLength) || 6,
@@ -185,6 +187,22 @@ export const StoryForm = ({ onGenerate, isLoading, latestError, submitLabel = 'C
             placeholder="Friendship between unlikely heroes"
           />
           {errors.theme && <span className="text-xs text-red-500">{errors.theme.message}</span>}
+        </label>
+
+        <label className="flex flex-col gap-2 md:col-span-2">
+          <span className="text-sm font-medium text-slate-700">
+            Story Details (Optional)
+            <span className="ml-2 text-xs font-normal text-slate-500">Describe the story you want to create</span>
+          </span>
+          <textarea
+            {...register('storyDetails')}
+            rows={4}
+            placeholder="Example: A brave knight embarks on a quest to save a kingdom from an ancient dragon. Along the way, they meet a wise wizard and a clever thief who join the adventure. The story should have exciting action scenes and moments of humor."
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+          />
+          <span className="text-xs text-slate-500">
+            💡 The more details you provide, the more personalized your story will be
+          </span>
         </label>
 
         <label className="flex flex-col gap-2">

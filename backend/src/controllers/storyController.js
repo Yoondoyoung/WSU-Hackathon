@@ -27,7 +27,8 @@ import {
   getStoriesBySession,
   saveGenerationLog,
   getGenerationLogs,
-  saveStoryAsset
+  saveStoryAsset,
+  saveAudioToDatabase
 } from '../services/storyStorageService.js';
 
 const parseTraits = (value) => {
@@ -43,6 +44,30 @@ const parseTraits = (value) => {
     .split(',')
     .map((trait) => trait.trim())
     .filter(Boolean);
+};
+
+const parseSupportingCharacters = (value) => {
+  if (!value) {
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(normaliseCharacterInput).filter(Boolean);
+  }
+
+  if (typeof value === 'string') {
+    return value
+      .split('\n')
+      .map((line) => normaliseCharacterInput(line.trim()))
+      .filter(Boolean);
+  }
+
+  if (typeof value === 'object') {
+    const normalised = normaliseCharacterInput(value);
+    return normalised ? [normalised] : [];
+  }
+
+  return [];
 };
 
 const normaliseCharacterInput = (input) => {
@@ -85,6 +110,7 @@ const buildStoryOptions = (body) => {
 
   return {
     theme: body.theme,
+    storyDetails: body.storyDetails || undefined, // User's custom story details
     genre: body.genre,
     targetAgeGroup: body.targetAgeGroup,
     storyLength: Number(body.storyLength) || 6,
@@ -199,6 +225,15 @@ export const buildStoryPipeline = asyncHandler(async (req, res) => {
   await updateStoryStatus(storyId, 'generating');
 
   console.log(`[pipeline] Story ${storyId}: received ${story.pages.length} scenes.`);
+  console.log(`[pipeline] Story structure:`, {
+    hasPages: !!story.pages,
+    pagesLength: story.pages?.length,
+    firstPage: story.pages?.[0] ? {
+      pageNumber: story.pages[0].pageNumber,
+      title: story.pages[0].title,
+      hasTimeline: !!story.pages[0].timeline
+    } : null
+  });
 
   const narratorConfig = await resolveNarratorVoice({
     narrationTone: req.body.narrationTone,
@@ -213,10 +248,32 @@ export const buildStoryPipeline = asyncHandler(async (req, res) => {
 
   // Save story pages to database
   for (const page of story.pages) {
-    await saveStoryPage(storyId, {
-      pageNumber: page.page,
+    console.log(`[storyController] Raw page object:`, {
+      keys: Object.keys(page),
+      pageNumber: page.pageNumber,
+      page: page.page,
+      title: page.title,
       scene_title: page.scene_title,
-      image_prompt: page.image_prompt,
+      imagePrompt: page.imagePrompt,
+      image_prompt: page.image_prompt
+    });
+    
+    console.log(`[storyController] Saving page:`, { 
+      pageNumber: page.pageNumber, 
+      scene_title: page.title,
+      hasTimeline: !!page.timeline,
+      timelineLength: page.timeline?.length
+    });
+    
+    if (!page.pageNumber) {
+      console.error(`[storyController] Page number is missing for page:`, page);
+      throw new HttpError(400, 'Page number is missing from story page');
+    }
+    
+    await saveStoryPage(storyId, {
+      pageNumber: page.pageNumber, // GPT service transforms page.page to pageNumber
+      scene_title: page.title, // GPT service transforms scene_title to title
+      image_prompt: page.imagePrompt, // GPT service transforms image_prompt to imagePrompt
       timeline: page.timeline
     });
   }
@@ -324,14 +381,12 @@ export const narratePages = asyncHandler(async (req, res) => {
       voiceId: fixedVoiceId,
       voiceSettings 
     });
-    const asset = await saveBase64Asset({
-      data: tts.audioBase64,
-      extension: 'mp3',
-      directory: 'audio',
-      fileName: `scene-${pageNumber}.mp3`,
-    });
-
-    results.push({ page: pageNumber, audio: asset.publicPath, audioUrl: asset.publicUrl });
+    
+    // Save audio to database instead of local storage
+    const audioBuffer = Buffer.from(tts.audioBase64, 'base64');
+    const audioAsset = await saveAudioToDatabase('narration-story', pageNumber, audioBuffer, 'audio/mpeg');
+    
+    results.push({ page: pageNumber, audio: audioAsset.asset_url, audioUrl: audioAsset.asset_url });
   }
 
   res.status(201).json({ audios: results });
@@ -505,8 +560,20 @@ export const generateStoryBundle = asyncHandler(async (req, res) => {
     const mixedAudio = createAudio
       ? await mixPageAudio({ pageNumber: page.pageNumber, segments: audioSegments })
       : null;
+    
+    let audioUrl = null;
     if (mixedAudio) {
-      console.log('[bundle] audio saved', { page: page.pageNumber, path: mixedAudio.publicPath });
+      // Convert the mixed audio to buffer and save to database
+      try {
+        const audioResponse = await fetch(mixedAudio.publicUrl);
+        const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
+        const audioAsset = await saveAudioToDatabase('bundle-story', page.pageNumber, audioBuffer, 'audio/mpeg');
+        audioUrl = audioAsset.asset_url;
+        console.log('[bundle] audio saved to database', { page: page.pageNumber, url: audioUrl });
+      } catch (error) {
+        console.error('[bundle] failed to save audio to database:', error);
+        audioUrl = mixedAudio.publicUrl; // Fallback to local URL
+      }
     }
 
     const illustration = createImages && page.imagePrompt
@@ -536,7 +603,7 @@ export const generateStoryBundle = asyncHandler(async (req, res) => {
       image: imageAsset?.publicPath ?? null,
       imageUrl: imageAsset?.publicUrl ?? null,
       audio: mixedAudio?.publicPath ?? null,
-      audioUrl: mixedAudio?.publicUrl ?? null,
+      audioUrl: audioUrl ?? mixedAudio?.publicUrl ?? null,
       text_md: page.timeline?.map(entry => entry.text || entry.description || '').filter(Boolean).join('\n\n') || '',
       timeline: page.timeline,
     });

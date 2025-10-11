@@ -46,7 +46,7 @@ router.post('/bundle', ENABLE_BUNDLE ? generateStoryBundle : disabledHandler('Bu
 router.get('/voices', ENABLE_ELEVEN_ENDPOINTS ? listElevenVoices : disabledHandler('Voices'));
 router.get('/narrator-voices', listNarratorVoices);
 router.post('/narrate-pages', ENABLE_AUDIO && ENABLE_ELEVEN_ENDPOINTS ? narratePages : disabledHandler('Narrate pages'));
-router.get('/:storyId/status', getStoryStatus);
-router.get('/:storyId/page/:pageNumber', getStoryPage);
+router.get('/story/:storyId/status', getStoryStatus);
+router.get('/story/:storyId/page/:pageNumber', getStoryPage);
 
 export default router;

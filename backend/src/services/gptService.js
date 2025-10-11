@@ -54,6 +54,7 @@ const ensureOpenAiKey = () => {
 
 const buildUserPrompt = ({
   theme,
+  storyDetails, // User's custom story details
   genre,
   targetAgeGroup,
   storyLength = 6,
@@ -63,6 +64,7 @@ const buildUserPrompt = ({
   narrationTone,
 }) => ({
   theme,
+  storyDetails: storyDetails || undefined, // Include if provided
   genre,
   targetAgeGroup,
   storyLength,
@@ -347,13 +349,35 @@ export const createStory = async (options) => {
     - Optional sound effects (sfx) for emotional or environmental emphasis.
     - An image_prompt describing the visual look and mood of the scene.
 
+    ## USER'S STORY REQUEST
+    ${options.storyDetails ? `
+    **Story Details from User:**
+    ${options.storyDetails}
+    
+    ⚠️ IMPORTANT: Follow the user's story details closely. Include the plot points, scenes, and story elements they requested.
+    If the user specified specific events or scenes, make sure to include them in the appropriate pages.
+    ` : ''}
+
     ## CHARACTER INFORMATION
     **Main Character:** ${options.mainCharacter?.name || 'Alex'} (${options.mainCharacter?.gender || 'male'}) - ${options.mainCharacter?.traits?.join(', ') || 'brave, curious'}
     
     **Supporting Characters:**
     ${options.supportingCharacters?.map(char => `- ${char.name} (${char.gender || 'non-binary'}) - ${char.traits?.join(', ') || 'loyal'}`).join('\n    ') || '- Sam (female) - loyal, inventive'}
     
-    **IMPORTANT:** Use the character gender information above to select appropriate voices. Male characters should use male voices, female characters should use female voices.
+    **CRITICAL CHARACTER CONSISTENCY RULES:**
+    1. **Physical Descriptions**: Create detailed, consistent physical descriptions for each character including:
+       - Age and appearance (hair color, eye color, build, height)
+       - Clothing style and colors
+       - Distinctive features (scars, accessories, etc.)
+       - Personality reflected in appearance
+    
+    2. **Character Voice Mapping**: Use the character gender information above to select appropriate voices. Male characters should use male voices, female characters should use female voices.
+    
+    3. **Image Prompt Consistency**: In every image_prompt, include detailed character descriptions to maintain visual consistency across all scenes:
+       - Always mention the character's physical appearance
+       - Include clothing details and colors
+       - Maintain the same visual style throughout the story
+       - Example: "A young woman with long auburn hair and green eyes, wearing a blue tunic and brown leather boots, standing confidently in a mystical forest"
 
     ## STORY STRUCTURE
     Create exactly ${options.storyLength || 4} pages following a dynamic structure based on length:
@@ -559,7 +583,7 @@ export const createStory = async (options) => {
               "text": "The ground trembled, and an ancient guardian rose from the depths."
             }
           ],
-          "image_prompt": "A fantasy scene where Taeil faces a massive stone guardian rising in a storm of dust and glowing light."
+          "image_prompt": "Cinematic fantasy scene featuring Taeil, a 22-year-old young man with short dark brown hair and determined brown eyes, wearing a weathered brown leather jacket and dark pants, standing bravely before a massive ancient stone guardian rising from the ground in a storm of dust and mystical golden light, dramatic lighting with ethereal glow, wide shot composition, high-quality digital art style"
         }
       ]
     }
@@ -612,7 +636,12 @@ export const createStory = async (options) => {
     7. **Radio Drama Feel**: Focus on character interactions and emotional beats
     8. **Diverse SFX**: Use varied sound effects that match the scene's mood and action
     9. **SFX Context**: MANDATORY - Every SFX MUST be preceded by narration. NEVER use SFX alone. This is CRITICAL for listener understanding.
-    10. **Image Prompts**: Describe visual mood and key elements for Seedream 4.0
+    10. **Image Prompts**: Create detailed, cinematic image prompts for Seedream 4.0 that include:
+        - **Character Consistency**: Always include detailed character descriptions (age, hair color, eye color, clothing, distinctive features)
+        - **Scene Composition**: Describe the setting, lighting, and mood
+        - **Visual Style**: Specify art style (cinematic, fantasy, realistic, etc.)
+        - **Camera Angle**: Include perspective (close-up, wide shot, etc.)
+        - **Example**: "Cinematic fantasy scene featuring a 25-year-old woman with long auburn hair and emerald green eyes, wearing a dark blue tunic with silver trim and brown leather boots, standing confidently in a mystical forest with ancient stone ruins, dramatic lighting with golden hour sunbeams filtering through the trees, wide shot composition, high-quality digital art style"
 
 ${voicePrompt}
 

@@ -72,6 +72,13 @@ export const updateStoryStatus = async (storyId, status, errorMessage = null) =>
 // Save story page
 export const saveStoryPage = async (storyId, pageData) => {
   try {
+    // Validate required fields
+    if (!pageData.pageNumber) {
+      throw new HttpError(400, 'Page number is required', { pageData });
+    }
+
+    console.log(`[storyStorage] Saving page ${pageData.pageNumber} for story ${storyId}`);
+
     const { data, error } = await supabase
       .from('story_pages')
       .insert({
@@ -246,6 +253,39 @@ export const saveStoryAsset = async (storyId, assetData) => {
     return data;
   } catch (error) {
     console.error('[storyStorage] Save story asset failed:', error);
+    throw error;
+  }
+};
+
+// Save audio file as base64 in database
+export const saveAudioToDatabase = async (storyId, pageNumber, audioBuffer, mimeType = 'audio/mpeg') => {
+  try {
+    const audioBase64 = audioBuffer.toString('base64');
+    const dataUrl = `data:${mimeType};base64,${audioBase64}`;
+    
+    const { data, error } = await supabase
+      .from('story_assets')
+      .insert({
+        story_id: storyId,
+        page_number: pageNumber,
+        asset_type: 'audio',
+        asset_url: dataUrl,
+        file_path: null, // No local file
+        file_size: audioBuffer.length,
+        mime_type: mimeType
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('[storyStorage] Save audio to database error:', error);
+      throw new HttpError(500, 'Failed to save audio to database', { error: error.message });
+    }
+
+    console.log(`[storyStorage] Audio saved to database for story ${storyId}, page ${pageNumber} (${Math.round(audioBuffer.length / 1024)}KB)`);
+    return data;
+  } catch (error) {
+    console.error('[storyStorage] Save audio to database failed:', error);
     throw error;
   }
 };
