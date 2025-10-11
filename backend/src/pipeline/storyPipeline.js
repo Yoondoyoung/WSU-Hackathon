@@ -70,16 +70,17 @@ const generateSound = async ({ description }) => {
   }
 };
 
-const generateIllustration = async ({ storyId, page, prompt }) => {
+const generateIllustration = async ({ storyId, page, prompt, characterReferences }) => {
   if (!ENABLE_IMAGES || !prompt) return null;
-  const referenceImage = getReferenceImage(storyId);
+  
   const illustration = await generateSceneIllustration({
     prompt,
     pageNumber: page,
-    referenceImage,
+    characterReferences,
   });
 
-  if (!referenceImage && illustration?.imageURL) {
+  // Set reference image for character consistency (first image only)
+  if (!getReferenceImage(storyId) && illustration?.imageURL) {
     // For reference images, we still need to download and store base64
     // This is a limitation of the current reference image system
     try {
@@ -102,7 +103,7 @@ const generateIllustration = async ({ storyId, page, prompt }) => {
   };
 };
 
-export const processScene = async ({ storyId, page, timeline, imagePrompt, narratorVoiceId }) => {
+export const processScene = async ({ storyId, page, timeline, imagePrompt, narratorVoiceId, characterReferences }) => {
   setPageStatus(storyId, page, 'processing');
   appendPageLog(storyId, page, `Setting the stage for scene ${page}...`);
   console.log(`[pipeline] Scene ${page}: starting processing.`);
@@ -200,7 +201,7 @@ export const processScene = async ({ storyId, page, timeline, imagePrompt, narra
     if (ENABLE_IMAGES && imagePrompt) {
       appendPageLog(storyId, page, 'Painting the illustration...');
       console.log(`[pipeline] Scene ${page}: requesting illustration.`);
-      illustration = await generateIllustration({ storyId, page, prompt: imagePrompt });
+      illustration = await generateIllustration({ storyId, page, prompt: imagePrompt, characterReferences });
       if (illustration) {
         setPageAssets(storyId, page, { image: illustration.publicUrl });
         appendPageLog(storyId, page, 'Illustration complete.');
@@ -229,7 +230,7 @@ export const processScene = async ({ storyId, page, timeline, imagePrompt, narra
   }
 };
 
-export const processStory = async ({ storyId, story, narratorVoiceId }) => {
+export const processStory = async ({ storyId, story, narratorVoiceId, characterReferences }) => {
   let completed = 0;
   console.log(`[pipeline] Story ${storyId}: processing ${story.pages.length} scenes.`);
   for (let i = 0; i < story.pages.length; i += 1) {
@@ -243,6 +244,7 @@ export const processStory = async ({ storyId, story, narratorVoiceId }) => {
         timeline: page.timeline,
         imagePrompt: prompt,
         narratorVoiceId,
+        characterReferences,
       });
       completed += 1;
       updateProgress(storyId, completed);
@@ -257,6 +259,7 @@ export const processStory = async ({ storyId, story, narratorVoiceId }) => {
             timeline: page.timeline,
             imagePrompt: prompt,
             narratorVoiceId,
+            characterReferences,
           });
           completed += 1;
           updateProgress(storyId, completed);

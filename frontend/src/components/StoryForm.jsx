@@ -21,6 +21,7 @@ const defaultValues = {
   createAudio: true,
   createImages: true,
   useUserVoice: false,
+  characterReferences: [], // Array of character reference images with IDs
 };
 
 const genres = ['Adventure', 'Fantasy', 'Mystery', 'Drama', 'Sci-Fi', 'Thriller', 'Romance', 'Comedy'];
@@ -97,6 +98,7 @@ export const StoryForm = ({ onGenerate, isLoading, latestError, submitLabel = 'C
   const [uploadName, setUploadName] = useState(null);
   const [narratorVoices, setNarratorVoices] = useState([]);
   const [loadingVoices, setLoadingVoices] = useState(true);
+  const [characterReferences, setCharacterReferences] = useState([]);
 
   const {
     register,
@@ -112,6 +114,44 @@ export const StoryForm = ({ onGenerate, isLoading, latestError, submitLabel = 'C
   const createAudio = watch('createAudio');
   const createImages = watch('createImages');
   const useUserVoice = watch('useUserVoice');
+  const mainCharacterName = watch('mainCharacterName');
+  const supportingCharactersText = watch('supportingCharacters');
+  
+  // Parse supporting characters for display
+  const supportingCharacters = parseSupportingCharacters(supportingCharactersText);
+  const mainCharacter = {
+    name: mainCharacterName || 'Alex',
+    gender: watch('mainCharacterGender') || 'male',
+    traits: watch('mainCharacterTraits') || 'brave, curious'
+  };
+
+  // Handle character reference image upload
+  const handleCharacterReferenceUpload = async (characterName, file) => {
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const base64 = e.target.result;
+      const newReference = {
+        id: Date.now(), // Simple ID generation
+        characterName,
+        imageBase64: base64,
+        fileName: file.name
+      };
+      
+      setCharacterReferences(prev => {
+        // Remove existing reference for this character if any
+        const filtered = prev.filter(ref => ref.characterName !== characterName);
+        return [...filtered, newReference];
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Remove character reference
+  const removeCharacterReference = (characterName) => {
+    setCharacterReferences(prev => prev.filter(ref => ref.characterName !== characterName));
+  };
 
   // Load narrator voices on component mount
   useEffect(() => {
@@ -157,6 +197,14 @@ export const StoryForm = ({ onGenerate, isLoading, latestError, submitLabel = 'C
       voiceSampleFormat = file.type === 'audio/wav' ? 'wav' : 'mp3';
     }
 
+    // Process character references with IDs
+    const processedCharacterReferences = characterReferences.map((ref, index) => ({
+      id: index + 1, // Assign sequential ID starting from 1
+      characterName: ref.characterName,
+      imageBase64: ref.imageBase64,
+      fileName: ref.fileName
+    }));
+
     const payload = {
       theme: values.theme,
       storyDetails: values.storyDetails || undefined, // User's custom story details
@@ -175,6 +223,7 @@ export const StoryForm = ({ onGenerate, isLoading, latestError, submitLabel = 'C
       useUserVoiceForNarration: useUserVoice && Boolean(voiceSampleBase64),
       voiceSampleBase64,
       voiceSampleFormat,
+      characterReferences: processedCharacterReferences,
     };
 
     onGenerate(payload);
@@ -184,6 +233,7 @@ export const StoryForm = ({ onGenerate, isLoading, latestError, submitLabel = 'C
     reset(defaultValues);
     setUploadName(null);
     setValue('voiceSample', undefined);
+    setCharacterReferences([]);
   };
 
   return (
@@ -311,6 +361,87 @@ export const StoryForm = ({ onGenerate, isLoading, latestError, submitLabel = 'C
             <span className="text-xs text-slate-400">One per line: Name | gender | traits (gender: male/female/non-binary)</span>
           </label>
         </div>
+
+        {/* Character Reference Images */}
+        <div className="space-y-4">
+          <h4 className="text-sm font-semibold text-slate-700">Character Reference Images</h4>
+          <p className="text-xs text-slate-500">
+            Upload reference images for each character to maintain visual consistency across all scenes.
+            Each character will be assigned a unique ID (1, 2, 3...) to prevent mixing.
+          </p>
+          
+          {/* Main Character Reference */}
+          <div className="rounded-lg border border-slate-200 p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-slate-700">
+                {mainCharacter.name} (Main Character) - ID: 1
+              </span>
+              {characterReferences.find(ref => ref.characterName === mainCharacter.name) && (
+                <button
+                  type="button"
+                  onClick={() => removeCharacterReference(mainCharacter.name)}
+                  className="text-xs text-red-500 hover:text-red-700"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+            
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => handleCharacterReferenceUpload(mainCharacter.name, e.target.files[0])}
+              className="text-xs"
+            />
+            
+            {characterReferences.find(ref => ref.characterName === mainCharacter.name) && (
+              <div className="mt-2">
+                <img
+                  src={characterReferences.find(ref => ref.characterName === mainCharacter.name)?.imageBase64}
+                  alt={`${mainCharacter.name} reference`}
+                  className="h-20 w-20 rounded border border-slate-200 object-cover"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Supporting Characters References */}
+          {supportingCharacters.map((char, index) => (
+            <div key={char.name} className="rounded-lg border border-slate-200 p-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-slate-700">
+                  {char.name} (Supporting) - ID: {index + 2}
+                </span>
+                {characterReferences.find(ref => ref.characterName === char.name) && (
+                  <button
+                    type="button"
+                    onClick={() => removeCharacterReference(char.name)}
+                    className="text-xs text-red-500 hover:text-red-700"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+              
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => handleCharacterReferenceUpload(char.name, e.target.files[0])}
+                className="text-xs"
+              />
+              
+              {characterReferences.find(ref => ref.characterName === char.name) && (
+                <div className="mt-2">
+                  <img
+                    src={characterReferences.find(ref => ref.characterName === char.name)?.imageBase64}
+                    alt={`${char.name} reference`}
+                    className="h-20 w-20 rounded border border-slate-200 object-cover"
+                  />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       </fieldset>
 
       <fieldset className="space-y-4 rounded-lg border border-slate-200 p-4">
@@ -341,6 +472,7 @@ export const StoryForm = ({ onGenerate, isLoading, latestError, submitLabel = 'C
             <span className="text-xs text-slate-400">Choose the image dimensions for your illustrations</span>
           </label>
         </div>
+
       </fieldset>
 
       <fieldset className="space-y-4 rounded-lg border border-slate-200 p-4">

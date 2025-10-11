@@ -47,24 +47,49 @@ export const generateSceneIllustration = async ({
   artStyle = 'Storybook',
   aspectRatio = '3:2',
   seed,
-  referenceImage,
+  characterReferences = [],
 }) => {
   console.log(`🎨 Runware: Starting image generation for page ${pageNumber}...`, { 
     prompt: prompt.substring(0, 100) + '...', 
     artStyle, 
     aspectRatio, 
     seed,
-    hasReference: !!referenceImage 
+    characterReferencesCount: characterReferences.length 
   });
   
   requireApiKey();
 
   try {
-    // Enhance prompt for better consistency and quality (no negative prompt needed)
+    // Process character references
+    const referenceImages = [];
+    if (characterReferences && characterReferences.length > 0) {
+      for (const ref of characterReferences) {
+        if (ref.imageBase64) {
+          // Convert base64 to buffer for Runware API
+          const base64Data = ref.imageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
+          referenceImages.push({
+            id: ref.id,
+            characterName: ref.characterName,
+            imageBase64: base64Data
+          });
+        }
+      }
+    }
+
+    // Enhance prompt for better consistency and quality
     const artStyleDescription = getArtStyleDescription(artStyle);
-    const enhancedPrompt = referenceImage 
-      ? `${prompt}. Maintain consistent character appearance and art style from previous scenes. ${artStyleDescription}, high quality digital illustration, clean composition, professional artwork.`
-      : `${prompt}. ${artStyleDescription}, high quality digital illustration, consistent character design, clean composition, professional artwork, vibrant colors, detailed rendering.`;
+    let enhancedPrompt = prompt;
+    
+    if (referenceImages.length > 0) {
+      // Add character reference information to prompt
+      const characterInfo = referenceImages.map(ref => 
+        `Character ${ref.id} (${ref.characterName}): Use this reference image to maintain consistent appearance`
+      ).join('. ');
+      
+      enhancedPrompt = `${prompt}. ${characterInfo}. Maintain consistent character appearance and art style from reference images. ${artStyleDescription}, high quality digital illustration, clean composition, professional artwork.`;
+    } else {
+      enhancedPrompt = `${prompt}. ${artStyleDescription}, high quality digital illustration, consistent character design, clean composition, professional artwork, vibrant colors, detailed rendering.`;
+    }
 
     console.log(`🎨 Runware: Calling Runware API for page ${pageNumber}...`);
     const taskUUID = uuidv4();
@@ -81,12 +106,13 @@ export const generateSceneIllustration = async ({
         includeCost: false,
         model: 'bytedance:5@0',
         positivePrompt: enhancedPrompt,
+        referenceImages: referenceImages.length > 0 ? referenceImages : undefined,
       }
     ];
 
     console.log(`🎨 Runware: Payload for page ${pageNumber}`, { 
       taskUUID: taskUUID,
-      hasReference: !!referenceImage,
+      referenceImagesCount: referenceImages.length,
       promptLength: enhancedPrompt.length,
       model: 'bytedance:5@0 (Seedream 4.0)',
       outputFormat: payload[0].outputFormat,

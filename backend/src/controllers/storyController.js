@@ -279,7 +279,13 @@ export const buildStoryPipeline = asyncHandler(async (req, res) => {
   }
 
   // Fire-and-forget background processing
-  processStory({ storyId, story, narratorVoiceId, sessionId }).catch((error) => {
+  processStory({ 
+    storyId, 
+    story, 
+    narratorVoiceId, 
+    sessionId,
+    characterReferences: req.body.characterReferences 
+  }).catch((error) => {
     console.error(`[pipeline] Story ${storyId}: pipeline error`, error);
   });
 
@@ -413,7 +419,7 @@ export const generateIllustrations = asyncHandler(async (req, res) => {
 export const generateSceneImages = asyncHandler(async (req, res) => {
   console.log('🔧 Controller: Starting image generation...', { pagesCount: req.body.pages?.length, artStyle: req.body.artStyle, aspectRatio: req.body.aspectRatio });
   
-  const { pages, artStyle = 'storybook', aspectRatio = '3:2' } = req.body;
+  const { pages, artStyle = 'storybook', aspectRatio = '3:2', characterReferences } = req.body;
   
   if (!Array.isArray(pages) || pages.length === 0) {
     console.error('🔧 Controller: Invalid pages array');
@@ -444,6 +450,7 @@ export const generateSceneImages = asyncHandler(async (req, res) => {
         artStyle,
         aspectRatio,
         seed: imageSeed,
+        characterReferences,
       });
 
       console.log(`🔧 Controller: Saving image asset for page ${pageNumber}...`);
@@ -487,6 +494,7 @@ export const generateStoryBundle = asyncHandler(async (req, res) => {
     voiceSampleBase64,
     voiceSampleFormat,
     useUserVoiceForNarration,
+    characterReferences,
   } = req.body;
 
   console.log('[bundle] start', { createAudio, createImages, artStyle, aspectRatio });
@@ -583,6 +591,7 @@ export const generateStoryBundle = asyncHandler(async (req, res) => {
           artStyle,
           aspectRatio,
           seed: imageSeed,
+          characterReferences,
         })
       : null;
 
