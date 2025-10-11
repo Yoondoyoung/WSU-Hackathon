@@ -296,6 +296,8 @@ export const buildStoryPipeline = asyncHandler(async (req, res) => {
 export const getStoryStatus = asyncHandler(async (req, res) => {
   const { storyId } = req.params;
   
+  console.log(`[getStoryStatus] Requested story ID: ${storyId}`);
+  
   if (!storyId) {
     throw new HttpError(400, 'Story ID is required');
   }

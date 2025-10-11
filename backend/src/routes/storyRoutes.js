@@ -46,7 +46,10 @@ router.post('/bundle', ENABLE_BUNDLE ? generateStoryBundle : disabledHandler('Bu
 router.get('/voices', ENABLE_ELEVEN_ENDPOINTS ? listElevenVoices : disabledHandler('Voices'));
 router.get('/narrator-voices', listNarratorVoices);
 router.post('/narrate-pages', ENABLE_AUDIO && ENABLE_ELEVEN_ENDPOINTS ? narratePages : disabledHandler('Narrate pages'));
-router.get('/story/:storyId/status', getStoryStatus);
+router.get('/story/:storyId/status', (req, res, next) => {
+  console.log(`[storyRoutes] GET /story/${req.params.storyId}/status - Route matched`);
+  next();
+}, getStoryStatus);
 router.get('/story/:storyId/page/:pageNumber', getStoryPage);
 
 export default router;
