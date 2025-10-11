@@ -30,6 +30,7 @@ import {
   saveStoryAsset,
   saveAudioToDatabase
 } from '../services/storyStorageService.js';
+import { supabase } from '../config/supabase.js';
 
 const parseTraits = (value) => {
   if (!value) {
@@ -293,20 +294,54 @@ export const buildStoryPipeline = asyncHandler(async (req, res) => {
 });
 
 export const getStoryStatus = asyncHandler(async (req, res) => {
-  const state = getStoryState(req.params.storyId);
-  if (!state) {
+  const { storyId } = req.params;
+  
+  if (!storyId) {
+    throw new HttpError(400, 'Story ID is required');
+  }
+
+  // Get story from database
+  const story = await getStory(storyId);
+  if (!story) {
     throw new HttpError(404, 'Story not found');
   }
 
+  // Get story pages from database
+  const { data: pages, error } = await supabase
+    .from('story_pages')
+    .select('*')
+    .eq('story_id', storyId)
+    .order('page_number');
+
+  if (error) {
+    console.error('[getStoryStatus] Error fetching pages:', error);
+    throw new HttpError(500, 'Failed to fetch story pages');
+  }
+
+  // Transform pages for frontend
+  const transformedPages = pages.map(page => ({
+    pageNumber: page.page_number,
+    title: page.scene_title,
+    status: page.status || 'pending',
+    assets: {
+      image: page.image_url,
+      audio: page.audio_url
+    },
+    timeline: page.timeline || []
+  }));
+
   res.json({
     story: {
-      title: state.story.title,
-      logline: state.story.logline,
-      characters: state.story.characters,
+      title: story.title,
+      logline: story.logline,
+      characters: story.characters,
     },
-    pages: state.pages,
-    progress: state.progress,
-    createdAt: state.createdAt,
+    pages: transformedPages,
+    progress: {
+      completed: transformedPages.filter(p => p.status === 'completed').length,
+      total: transformedPages.length
+    },
+    createdAt: story.created_at,
   });
 });
 
