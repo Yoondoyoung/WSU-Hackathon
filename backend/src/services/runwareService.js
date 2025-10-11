@@ -98,18 +98,14 @@ export const generateSceneIllustration = async ({
   requireApiKey();
 
   try {
-    // Process character references
+    // Process character references for Runware API
     const referenceImages = [];
     if (characterReferences && characterReferences.length > 0) {
       for (const ref of characterReferences) {
         if (ref.imageBase64) {
-          // Convert base64 to buffer for Runware API
-          const base64Data = ref.imageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
-          referenceImages.push({
-            id: ref.id,
-            characterName: ref.characterName,
-            imageBase64: base64Data
-          });
+          // Runware API expects base64 strings directly, not objects
+          // Keep the data URI format as it includes the image type
+          referenceImages.push(ref.imageBase64);
         }
       }
     }
@@ -119,9 +115,9 @@ export const generateSceneIllustration = async ({
     let enhancedPrompt = prompt;
     
     if (referenceImages.length > 0) {
-      // Add character reference information to prompt
-      const characterInfo = referenceImages.map(ref => 
-        `Character ${ref.id} (${ref.characterName}): Use this reference image to maintain consistent appearance`
+      // Add character reference information to prompt using original characterReferences
+      const characterInfo = characterReferences.map((ref, index) => 
+        `Character ${ref.id} (${ref.characterName}): Use reference image ${index + 1} to maintain consistent appearance`
       ).join('. ');
       
       enhancedPrompt = `${prompt}. ${characterInfo}. Maintain consistent character appearance and art style from reference images. ${artStyleDescription}, high quality digital illustration, clean composition, professional artwork.`;
