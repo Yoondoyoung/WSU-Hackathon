@@ -74,15 +74,26 @@ const StoryPager = ({ story, pages }) => {
       {current && (
         <article className="flex flex-col gap-4 rounded-lg border border-slate-200 p-4">
           {/* 상단: 이미지 */}
-          <div className="aspect-[16/9] overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
+          <div className="aspect-[16/9] overflow-hidden rounded-lg border border-slate-200 bg-slate-100 relative group">
             {imageSrc && !imageError ? (
-              <img
-                src={imageSrc}
-                alt={current.title || `Scene ${current.pageNumber || current.page}`}
-                className="h-full w-full object-cover"
-                onError={() => setImageError(true)}
-                onLoad={() => setImageError(false)}
-              />
+              <>
+                <img
+                  src={imageSrc}
+                  alt={current.title || `Scene ${current.pageNumber || current.page}`}
+                  className="h-full w-full object-cover"
+                  onError={() => setImageError(true)}
+                  onLoad={() => setImageError(false)}
+                />
+                {/* 호버 시 프롬프트 툴팁 */}
+                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-60 transition-all duration-300 flex items-center justify-center opacity-0 group-hover:opacity-100">
+                  <div className="bg-white rounded-lg p-4 m-4 max-w-md max-h-64 overflow-y-auto shadow-lg">
+                    <div className="text-xs font-semibold text-slate-700 mb-2">Image Prompt:</div>
+                    <p className="text-xs text-slate-600 whitespace-pre-line">
+                      {current.imagePrompt || current.image_prompt || 'No prompt provided.'}
+                    </p>
+                  </div>
+                </div>
+              </>
             ) : (
               <div className="flex h-full w-full items-center justify-center p-4 text-sm text-slate-600">
                 <div className="text-center">
