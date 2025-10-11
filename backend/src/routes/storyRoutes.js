@@ -11,6 +11,11 @@ import {
   buildStoryPipeline,
   getStoryStatus,
   getStoryPage,
+  getStoriesBySessionId,
+  getStoryById,
+  getSessionStatistics,
+  getStoryGenerationLogs,
+  createNewSession,
 } from '../controllers/storyController.js';
 import {
   ENABLE_AUDIO,
@@ -22,8 +27,18 @@ import {
 
 const router = Router();
 
+// Session management
+router.post('/session', createNewSession);
+router.get('/session/:sessionId/stories', getStoriesBySessionId);
+router.get('/session/:sessionId/stats', getSessionStatistics);
+
+// Story management
 router.post('/generate', generateStory);
 router.post('/build', buildStoryPipeline);
+router.get('/story/:storyId', getStoryById);
+router.get('/story/:storyId/logs', getStoryGenerationLogs);
+
+// Legacy endpoints
 router.post('/narrate', ENABLE_AUDIO && ENABLE_ELEVEN_ENDPOINTS ? generateNarration : disabledHandler('Narration'));
 router.post('/illustrate', ENABLE_IMAGES ? generateIllustrations : disabledHandler('Illustration'));
 router.post('/generate-images', ENABLE_IMAGES ? generateSceneImages : disabledHandler('Generate Images'));

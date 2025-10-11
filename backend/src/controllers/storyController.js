@@ -13,6 +13,22 @@ import { saveBase64Asset } from '../utils/storage.js';
 import { resolveVoiceId } from '../config/voiceMap.js';
 import { processStory } from '../pipeline/storyPipeline.js';
 import { createStoryState, getStoryState } from '../state/storyState.js';
+import { 
+  getOrCreateSession, 
+  generateSessionId, 
+  getSessionStats 
+} from '../services/sessionService.js';
+import { 
+  saveStory, 
+  updateStoryStatus, 
+  saveStoryPage, 
+  updateStoryPage,
+  getStory,
+  getStoriesBySession,
+  saveGenerationLog,
+  getGenerationLogs,
+  saveStoryAsset
+} from '../services/storyStorageService.js';
 
 const parseTraits = (value) => {
   if (!value) {
@@ -146,8 +162,41 @@ export const generateStory = asyncHandler(async (req, res) => {
 export const buildStoryPipeline = asyncHandler(async (req, res) => {
   assertRequiredStoryFields(req.body ?? {});
 
+  // Get or create session
+  const sessionId = req.headers['x-session-id'] || generateSessionId();
+  const session = await getOrCreateSession(sessionId, {
+    userAgent: req.headers['user-agent'],
+    ipAddress: req.ip || req.connection.remoteAddress
+  });
+
+  console.log(`[pipeline] Session ${sessionId}: starting story generation`);
+
+  // Create story in database
+  const storyData = {
+    title: req.body.title || 'Untitled Story',
+    genre: req.body.genre,
+    target_audience: req.body.targetAgeGroup,
+    theme: req.body.theme,
+    story_length: req.body.storyLength,
+    art_style: req.body.artStyle,
+    main_character: {
+      name: req.body.mainCharacterName,
+      gender: req.body.mainCharacterGender,
+      traits: parseTraits(req.body.mainCharacterTraits)
+    },
+    supporting_characters: parseSupportingCharacters(req.body.supportingCharacters),
+    narration_voice_id: req.body.narrationVoiceId,
+    narration_tone: req.body.narrationTone
+  };
+
+  const savedStory = await saveStory(sessionId, storyData);
+  const storyId = savedStory.id;
+
+  // Generate story content
   const story = await createStory(buildStoryOptions(req.body));
-  const storyId = createStoryState({ story });
+  
+  // Update story with generated content
+  await updateStoryStatus(storyId, 'generating');
 
   console.log(`[pipeline] Story ${storyId}: received ${story.pages.length} scenes.`);
 
@@ -162,8 +211,18 @@ export const buildStoryPipeline = asyncHandler(async (req, res) => {
 
   const narratorVoiceId = narratorConfig?.voiceId || process.env.ELEVENLABS_NARRATOR_VOICE_ID;
 
+  // Save story pages to database
+  for (const page of story.pages) {
+    await saveStoryPage(storyId, {
+      pageNumber: page.page,
+      scene_title: page.scene_title,
+      image_prompt: page.image_prompt,
+      timeline: page.timeline
+    });
+  }
+
   // Fire-and-forget background processing
-  processStory({ storyId, story, narratorVoiceId }).catch((error) => {
+  processStory({ storyId, story, narratorVoiceId, sessionId }).catch((error) => {
     console.error(`[pipeline] Story ${storyId}: pipeline error`, error);
   });
 
@@ -510,5 +569,86 @@ export const listNarratorVoices = asyncHandler(async (req, res) => {
   res.status(200).json({
     voices: narratorVoices,
     total: narratorVoices.length
+  });
+});
+
+// Get stories by session
+export const getStoriesBySessionId = asyncHandler(async (req, res) => {
+  const { sessionId } = req.params;
+  
+  if (!sessionId) {
+    throw new HttpError(400, 'Session ID is required');
+  }
+
+  const stories = await getStoriesBySession(sessionId);
+  
+  res.status(200).json({
+    sessionId,
+    stories,
+    total: stories.length
+  });
+});
+
+// Get story by ID
+export const getStoryById = asyncHandler(async (req, res) => {
+  const { storyId } = req.params;
+  
+  if (!storyId) {
+    throw new HttpError(400, 'Story ID is required');
+  }
+
+  const story = await getStory(storyId);
+  
+  if (!story) {
+    throw new HttpError(404, 'Story not found');
+  }
+  
+  res.status(200).json(story);
+});
+
+// Get session statistics
+export const getSessionStatistics = asyncHandler(async (req, res) => {
+  const { sessionId } = req.params;
+  
+  if (!sessionId) {
+    throw new HttpError(400, 'Session ID is required');
+  }
+
+  const stats = await getSessionStats(sessionId);
+  
+  res.status(200).json({
+    sessionId,
+    ...stats
+  });
+});
+
+// Get generation logs for a story
+export const getStoryGenerationLogs = asyncHandler(async (req, res) => {
+  const { storyId } = req.params;
+  
+  if (!storyId) {
+    throw new HttpError(400, 'Story ID is required');
+  }
+
+  const logs = await getGenerationLogs(storyId);
+  
+  res.status(200).json({
+    storyId,
+    logs,
+    total: logs.length
+  });
+});
+
+// Create new session
+export const createNewSession = asyncHandler(async (req, res) => {
+  const sessionId = generateSessionId();
+  const session = await getOrCreateSession(sessionId, {
+    userAgent: req.headers['user-agent'],
+    ipAddress: req.ip || req.connection.remoteAddress
+  });
+  
+  res.status(201).json({
+    sessionId,
+    session
   });
 });

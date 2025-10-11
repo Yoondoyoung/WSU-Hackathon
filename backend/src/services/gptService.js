@@ -3,10 +3,26 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { config as loadEnv } from "dotenv";
 import { HttpError } from "../utils/errorHandlers.js";
-import {
-  normaliseTimelineEntry,
-  timelineDialogueText,
-} from "../utils/timeline.js";
+// Timeline utility functions (inline implementation)
+const timelineDialogueText = (timeline = []) => {
+  return timeline
+    .flatMap((entry) => {
+      if (!entry?.type) {
+        return [];
+      }
+
+      if (entry.type === 'narration' || entry.type === 'narrator') {
+        return entry.text ? [entry.text] : [];
+      }
+
+      if (entry.type === 'character') {
+        return entry.text ? [`${entry.name ?? 'Character'} says ${entry.text}`] : [];
+      }
+
+      return [];
+    })
+    .join(' ');
+};
 import fs from "fs";
 
 const OPENAI_CHAT_COMPLETIONS_URL =
