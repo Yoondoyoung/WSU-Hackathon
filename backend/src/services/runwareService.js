@@ -138,8 +138,9 @@ export const generateSceneIllustration = async ({
     console.log(`🎨 Runware: Raw response data for page ${pageNumber}:`, data);
     
     // The response structure is { data: [{ imageURL: "...", ... }] }
-    // We need to get the first item from the data array
-    const result = Array.isArray(data) && data.length > 0 ? data[0] : data;
+    // We need to access the nested data array: response.data.data
+    const dataArray = data?.data;
+    const result = Array.isArray(dataArray) && dataArray.length > 0 ? dataArray[0] : null;
     console.log(`🎨 Runware: Full API response for page ${pageNumber}:`, JSON.stringify(data, null, 2));
     console.log(`🎨 Runware: Processed result for page ${pageNumber}:`, result);
     console.log(`🎨 Runware: Available fields in result:`, Object.keys(result || {}));
