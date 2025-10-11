@@ -762,7 +762,7 @@ export const createStory = async (options) => {
     - Occasional short narration (1–2 sentences) for transitions or mood.
     - Each page should have substantial content: 3-4 character interactions + 1-2 narration beats + optional SFX.
     - Optional sound effects (sfx) for emotional or environmental emphasis.
-    - An image_prompt describing the visual look and mood of the scene.
+    - An image_prompt describing the visual look and mood of the scene, including detailed descriptions of ALL characters appearing in the scene (main characters, villains, strangers, supporting characters).
 
     ## USER'S STORY REQUEST
     ${options.storyDetails ? `
@@ -1008,6 +1008,26 @@ export const createStory = async (options) => {
             }
           ],
           "image_prompt": "Cinematic fantasy scene featuring Taeil, a 22-year-old young man with short dark brown hair and determined brown eyes, wearing a weathered brown leather jacket and dark pants, standing bravely before a massive ancient stone guardian rising from the ground in a storm of dust and mystical golden light, dramatic lighting with ethereal glow, wide shot composition, high-quality digital art style"
+        },
+        {
+          "page": 2,
+          "scene_title": "The Dark Stranger",
+          "timeline": [
+            {
+              "type": "character",
+              "name": "Dark Stranger",
+              "emotion": "villainous",
+              "voice_id": "2EiwWnXFnvU5JabPnv8n",
+              "voice_settings": {
+                "stability": 0.45,
+                "similarity_boost": 0.7,
+                "style": 0.85,
+                "speed": 0.95
+              },
+              "text": "You have awakened what should have remained buried, mortal."
+            }
+          ],
+          "image_prompt": "Cinematic fantasy scene featuring Taeil, a 22-year-old young man with short dark brown hair and determined brown eyes, wearing a weathered brown leather jacket, facing off against a mysterious Dark Stranger - a tall, imposing figure with long silver hair, piercing red eyes, wearing a dark hooded cloak with silver trim, menacing expression, standing in ancient ruins with dramatic shadows and mystical lighting, wide shot composition, high-quality digital art style"
         }
       ]
     }
@@ -1063,10 +1083,17 @@ export const createStory = async (options) => {
     9. **SFX Context**: MANDATORY - Every SFX MUST be preceded by narration. NEVER use SFX alone. This is CRITICAL for listener understanding.
     10. **Image Prompts**: Create detailed, cinematic image prompts for Seedream 4.0 that include:
         - **Character Consistency**: Always include detailed character descriptions (age, hair color, eye color, clothing, distinctive features)
+        - **ALL Characters**: Include descriptions for EVERY character appearing in the scene, including villains, strangers, and supporting characters
+        - **Villain/Stranger Details**: When villains or strangers appear, provide their detailed physical description (gender, age, hair color, eye color, clothing, distinctive features, facial expressions)
         - **Scene Composition**: Describe the setting, lighting, and mood
         - **Visual Style**: Specify art style (cinematic, fantasy, realistic, etc.)
         - **Camera Angle**: Include perspective (close-up, wide shot, etc.)
-        - **Example**: "Cinematic fantasy scene featuring a 25-year-old woman with long auburn hair and emerald green eyes, wearing a dark blue tunic with silver trim and brown leather boots, standing confidently in a mystical forest with ancient stone ruins, dramatic lighting with golden hour sunbeams filtering through the trees, wide shot composition, high-quality digital art style"
+        - **Example with Villain**: "Cinematic fantasy scene featuring Alex, a 22-year-old young man with short dark brown hair and determined brown eyes, wearing a weathered brown leather jacket, standing bravely before a mysterious stranger - a tall, imposing figure with long silver hair, piercing red eyes, wearing a dark hooded cloak with silver trim, menacing expression, dramatic lighting with shadows and ethereal glow, wide shot composition, high-quality digital art style"
+    11. **Character Appearance Rules**: 
+        - **MANDATORY**: Every character that appears in dialogue MUST be described in the image_prompt
+        - **Villains/Strangers**: Must include gender, age, hair color, eye color, clothing, distinctive features, and facial expression
+        - **Consistency**: Use the same physical description for the same character across all pages
+        - **Format**: "Character Name, [age]-year-old [gender] with [hair description] and [eye color] eyes, wearing [clothing], [distinctive features], [facial expression]"
 
     ## OUTPUT JSON STRUCTURE
     The final response must be valid JSON with the following top-level fields:
