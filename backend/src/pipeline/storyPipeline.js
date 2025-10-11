@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { synthesizeSpeech, generateSoundEffect } from '../services/elevenLabsService.js';
 import { generateSceneIllustration } from '../services/runwareService.js';
-import { mixSequentialAudio, mixAudioWithSFX } from '../services/audioMixerService.js';
+import { mixSequentialAudio, mixAudioWithSFX, applySFXFadeEffects } from '../services/audioMixerService.js';
 import { saveBase64Asset } from '../utils/storage.js';
 import { saveAudioToDatabase, updateStoryPage } from '../services/storyStorageService.js';
 import {
@@ -148,8 +148,10 @@ export const processScene = async ({ storyId, page, timeline, imagePrompt, narra
           try {
             const fx = await generateSound({ description });
             if (fx) {
-              audioBuffers.push(fx.buffer);
-              appendPageLog(storyId, page, 'Sound effect ready.');
+              // SFX에 fade 효과 적용
+              const fadedFx = await applySFXFadeEffects(fx.buffer, description);
+              audioBuffers.push(fadedFx);
+              appendPageLog(storyId, page, 'Sound effect ready with fade effects.');
             } else {
               appendPageLog(storyId, page, 'Sound effect generation returned null - skipping.');
             }

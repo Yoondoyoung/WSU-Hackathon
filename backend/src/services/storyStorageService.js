@@ -41,6 +41,34 @@ export const saveStory = async (sessionId, storyData) => {
   }
 };
 
+// Update story with generated content (title, etc.)
+export const updateStoryWithGeneratedContent = async (storyId, generatedTitle) => {
+  try {
+    const updates = { 
+      title: generatedTitle,
+      updated_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabase
+      .from('stories')
+      .update(updates)
+      .eq('id', storyId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('[storyStorage] Update story with generated content error:', error);
+      throw new HttpError(500, 'Failed to update story with generated content', { error: error.message });
+    }
+
+    console.log(`[storyStorage] Updated story ${storyId} with generated title: ${generatedTitle}`);
+    return data;
+  } catch (error) {
+    console.error('[storyStorage] Update story with generated content failed:', error);
+    throw error;
+  }
+};
+
 // Update story status
 export const updateStoryStatus = async (storyId, status, errorMessage = null) => {
   try {

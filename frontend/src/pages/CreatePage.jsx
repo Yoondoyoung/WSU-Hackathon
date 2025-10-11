@@ -58,7 +58,10 @@ const CreatePage = ({ onNavigateToLibrary }) => {
                 Library
               </button>
             </div>
-            <span className="rounded-full border border-primary/30 bg-primary/10 px-2 sm:px-3 py-1 text-xs font-medium text-primary">
+            <span className="rounded-full border border-primary/30 bg-primary/10 px-2 sm:px-3 py-1 text-xs font-medium text-primary flex items-center gap-2">
+              {isLoading && (
+                <div className="h-3 w-3 animate-spin rounded-full border border-primary border-t-transparent"></div>
+              )}
               {statusCopy[status] ?? 'Working…'}
             </span>
           </div>

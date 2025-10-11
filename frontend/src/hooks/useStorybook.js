@@ -161,7 +161,20 @@ export const useStorybook = (onStoryCompleted) => {
       return `Scene ${failedPage.pageNumber} stumbled: ${failedPage.errors[failedPage.errors.length - 1].message}`;
     }
 
-    return 'Polishing the final touches...';
+    // 단계별 메시지 계산
+    const totalPages = pages.length;
+    const completedPages = pages.filter(p => p.status === 'completed').length;
+    const progressRatio = totalPages > 0 ? completedPages / totalPages : 0;
+
+    if (progressRatio < 0.3) {
+      return 'Crafting the opening scenes...';
+    } else if (progressRatio < 0.7) {
+      return 'Building the story momentum...';
+    } else if (progressRatio < 1) {
+      return 'Polishing the final touches...';
+    } else {
+      return 'Finalizing your story...';
+    }
   }, [isPipelineActive, pages]);
 
   return {

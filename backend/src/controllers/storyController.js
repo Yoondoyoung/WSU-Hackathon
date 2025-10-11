@@ -6,7 +6,7 @@ import {
   listVoices,
 } from '../services/elevenLabsService.js';
 import { generateSceneIllustration } from '../services/runwareService.js';
-import { mixPageAudio } from '../services/audioMixerService.js';
+import { mixPageAudio, applySFXFadeEffects } from '../services/audioMixerService.js';
 import { asyncHandler, HttpError } from '../utils/errorHandlers.js';
 import { matchCharacterVoice, matchNarrationVoice, defaultCharacterVoiceSettings } from '../utils/voiceLibrary.js';
 import { saveBase64Asset } from '../utils/storage.js';
@@ -21,6 +21,7 @@ import {
 import { 
   saveStory, 
   updateStoryStatus, 
+  updateStoryWithGeneratedContent,
   saveStoryPage, 
   updateStoryPage,
   getStory,
@@ -223,7 +224,8 @@ export const buildStoryPipeline = asyncHandler(async (req, res) => {
   // Generate story content
   const story = await createStory(buildStoryOptions(req.body));
   
-  // Update story with generated content
+  // Update story with generated title and content
+  await updateStoryWithGeneratedContent(storyId, story.title);
   await updateStoryStatus(storyId, 'generating');
 
   console.log(`[pipeline] Story ${storyId}: received ${story.pages.length} scenes.`);
@@ -273,7 +275,13 @@ export const buildStoryPipeline = asyncHandler(async (req, res) => {
     console.error(`[pipeline] Story ${storyId}: pipeline error`, error);
   });
 
-  res.status(202).json({ storyId, story });
+  res.status(202).json({ 
+    storyId, 
+    story: {
+      ...story,
+      title: story.title // GPT가 생성한 제목 포함
+    }
+  });
 });
 
 export const getStoryStatus = asyncHandler(async (req, res) => {
@@ -578,7 +586,20 @@ export const generateStoryBundle = asyncHandler(async (req, res) => {
             placeholder: beat.placeholder,
           });
 
-          audioSegments.push({ type: 'sfx', ...effect });
+          // SFX에 fade 효과 적용
+          if (effect.audioBase64) {
+            const sfxBuffer = Buffer.from(effect.audioBase64, 'base64');
+            const fadedSfxBuffer = await applySFXFadeEffects(sfxBuffer, beat.description);
+            const fadedSfxBase64 = fadedSfxBuffer.toString('base64');
+            
+            audioSegments.push({ 
+              type: 'sfx', 
+              ...effect,
+              audioBase64: fadedSfxBase64
+            });
+          } else {
+            audioSegments.push({ type: 'sfx', ...effect });
+          }
         }
       }
     }

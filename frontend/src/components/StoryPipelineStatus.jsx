@@ -20,7 +20,12 @@ const StoryPipelineStatus = ({ progress = 0, message, pages = [] }) => {
   return (
     <div className="rounded-xl border border-primary/20 bg-white/80 p-4 shadow animate-[pulse_3s_ease-in-out_infinite]">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-slate-700">{displayMessage}</p>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
+          </div>
+          <p className="text-sm font-medium text-slate-700">{displayMessage}</p>
+        </div>
         <span className="text-xs text-slate-500">{percent}%</span>
       </div>
       <div className="mt-3 h-2 w-full rounded-full bg-slate-200">
