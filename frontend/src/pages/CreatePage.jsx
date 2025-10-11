@@ -80,7 +80,7 @@ const CreatePage = () => {
           {isPipelineActive && (
             <StoryPipelineStatus progress={progress} message={pipelineMessage} pages={pages} />
           )}
-          <StoryPager story={story} pages={pages} />
+          <StoryPager story={story} pages={pages || []} />
         </section>
       </main>
 

@@ -15,7 +15,7 @@ const fallbackMessages = [
 const StoryPipelineStatus = ({ progress = 0, message, pages = [] }) => {
   const percent = Math.round(Math.min(Math.max(progress * 100, 0), 100));
   const displayMessage = message || fallbackMessages[percent % fallbackMessages.length];
-  const slices = pages.slice(0, 4);
+  const slices = (pages || []).slice(0, 4);
 
   return (
     <div className="rounded-xl border border-primary/20 bg-white/80 p-4 shadow animate-[pulse_3s_ease-in-out_infinite]">

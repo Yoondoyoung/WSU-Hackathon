@@ -4,7 +4,7 @@ import axios from 'axios';
 const getBaseURL = () => {
   if (import.meta.env.PROD) {
     // 프로덕션 환경에서는 백엔드 URL을 설정
-    return import.meta.env.VITE_API_URL || 'https://your-backend-url.vercel.app/api';
+    return import.meta.env.VITE_API_URL || 'https://wsu-hackathon-backend.vercel.app/api';
   }
   // 개발 환경에서는 프록시 사용
   return '/api';

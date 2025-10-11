@@ -198,7 +198,7 @@ export const StoryForm = ({ onGenerate, isLoading, latestError, submitLabel = 'C
     }
 
     // Process character references with IDs
-    const processedCharacterReferences = characterReferences.map((ref, index) => ({
+    const processedCharacterReferences = (characterReferences || []).map((ref, index) => ({
       id: index + 1, // Assign sequential ID starting from 1
       characterName: ref.characterName,
       imageBase64: ref.imageBase64,
@@ -278,7 +278,7 @@ export const StoryForm = ({ onGenerate, isLoading, latestError, submitLabel = 'C
         <label className="flex flex-col gap-2">
           <span className="text-sm font-medium text-slate-700">Genre</span>
           <select {...register('genre')}>
-            {genres.map((genre) => (
+            {(genres || []).map((genre) => (
               <option key={genre} value={genre}>
                 {genre}
               </option>
@@ -313,7 +313,7 @@ export const StoryForm = ({ onGenerate, isLoading, latestError, submitLabel = 'C
           <div className="text-sm text-slate-500">Loading voices...</div>
         ) : (
           <select {...register('narrationVoiceId')}>
-            {narratorVoices.map((voice) => (
+            {(narratorVoices || []).map((voice) => (
               <option key={voice.id} value={voice.id}>
                 {voice.name} ({voice.gender}) - {voice.description}
               </option>
@@ -406,7 +406,7 @@ export const StoryForm = ({ onGenerate, isLoading, latestError, submitLabel = 'C
           </div>
 
           {/* Supporting Characters References */}
-          {supportingCharacters.map((char, index) => (
+          {(supportingCharacters || []).map((char, index) => (
             <div key={char.name} className="rounded-lg border border-slate-200 p-3">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-slate-700">
@@ -451,7 +451,7 @@ export const StoryForm = ({ onGenerate, isLoading, latestError, submitLabel = 'C
           <label className="flex flex-col gap-2">
             <span className="text-sm font-medium text-slate-700">Art style</span>
             <select {...register('artStyle')}>
-              {artStyles.map((style) => (
+              {(artStyles || []).map((style) => (
                 <option key={style.value} value={style.value}>
                   {style.label}
                 </option>
@@ -463,7 +463,7 @@ export const StoryForm = ({ onGenerate, isLoading, latestError, submitLabel = 'C
           <label className="flex flex-col gap-2">
             <span className="text-sm font-medium text-slate-700">Aspect ratio</span>
             <select {...register('aspectRatio')}>
-              {aspectRatios.map((ratio) => (
+              {(aspectRatios || []).map((ratio) => (
                 <option key={ratio.value} value={ratio.value}>
                   {ratio.label}
                 </option>

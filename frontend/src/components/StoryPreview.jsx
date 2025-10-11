@@ -29,7 +29,7 @@ const TimelineRow = ({ entry }) => {
   );
 };
 
-export const StoryPreview = ({ story, pages, isLoading }) => {
+export const StoryPreview = ({ story, pages = [], isLoading }) => {
   if (!story) {
     return (
       <section className="flex h-full flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-slate-500">
@@ -59,7 +59,7 @@ export const StoryPreview = ({ story, pages, isLoading }) => {
       </header>
 
       <div className={clsx('flex-1 space-y-4 overflow-y-auto pr-2', isLoading && 'opacity-70')}>
-        {pages.map((page) => (
+        {(pages || []).map((page) => (
           <article
             key={page.page}
             className="space-y-3 rounded-lg border border-slate-200 p-4"
@@ -86,7 +86,7 @@ export const StoryPreview = ({ story, pages, isLoading }) => {
             )}
 
             <ul className="space-y-2">
-              {page.timeline?.map((entry, index) => (
+              {(page.timeline || []).map((entry, index) => (
                 <TimelineRow entry={entry} key={`${page.page}-${entry.type}-${index}`} />
               ))}
             </ul>

@@ -14,7 +14,7 @@ const getLatestLog = (page) => {
   return page.logs[page.logs.length - 1];
 };
 
-const StoryPager = ({ story, pages }) => {
+const StoryPager = ({ story, pages = [] }) => {
   const [index, setIndex] = useState(0);
   const [imageError, setImageError] = useState(false);
   const [autoPlay, setAutoPlay] = useState(true);
@@ -54,11 +54,12 @@ const StoryPager = ({ story, pages }) => {
     }
   }, [index, audioSrc, autoPlay]);
 
-  // 디버깅: 현재 페이지의 오디오 소스 출력
+  // 오디오 소스가 없을 때 자동재생 비활성화
   useEffect(() => {
-    console.log(`Page ${index + 1} audio source:`, audioSrc);
-    console.log(`Current page data:`, current);
-  }, [index, audioSrc, current]);
+    if (!audioSrc && autoPlay) {
+      setAutoPlay(false);
+    }
+  }, [audioSrc, autoPlay]);
 
   const goPrev = () => {
     // 현재 재생 중인 음성 정지
@@ -221,7 +222,7 @@ const StoryPager = ({ story, pages }) => {
           </div>
 
           {/* 하단: 오디오 재생 바 */}
-          {audioSrc && (
+          {audioSrc ? (
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
               <div className="mb-2 flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -254,6 +255,16 @@ const StoryPager = ({ story, pages }) => {
                 <source src={audioSrc} type="audio/mpeg" />
                 Your browser does not support the audio element.
               </audio>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div className="flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full bg-slate-400"></div>
+                <span className="text-xs font-semibold text-slate-500">Audio not available</span>
+              </div>
+              <p className="text-xs text-slate-400 mt-1">
+                Audio is being generated or is not available for this page.
+              </p>
             </div>
           )}
         </article>

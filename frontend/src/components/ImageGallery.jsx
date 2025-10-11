@@ -1,4 +1,4 @@
-export const ImageGallery = ({ illustrations, isLoading }) => {
+export const ImageGallery = ({ illustrations = [], isLoading }) => {
   if (!illustrations?.length) {
     return (
       <section className="space-y-4 rounded-xl bg-white p-6 shadow-lg">
@@ -17,7 +17,7 @@ export const ImageGallery = ({ illustrations, isLoading }) => {
         {isLoading && <span className="text-xs text-primary">Updating…</span>}
       </header>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {illustrations.map((item) => {
+        {(illustrations || []).map((item) => {
           const src = `data:image/png;base64,${item.imageBase64}`;
           return (
             <figure key={item.pageNumber} className="space-y-2">
