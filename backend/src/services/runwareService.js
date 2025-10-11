@@ -30,53 +30,19 @@ const getArtStyleDescription = (artStyle) => {
 };
 
 const getAspectRatioDimensions = (aspectRatio) => {
-  const ratioMap = {
-    '1:1': { width: 1024, height: 1024 }, // 1,048,576 pixels ✓
-    '4:3': { width: 1024, height: 768 }, // 786,432 pixels - need to increase
-    '3:2': { width: 1024, height: 683 }, // 699,392 pixels - need to increase
-    '16:9': { width: 1024, height: 576 }, // 589,824 pixels - need to increase
-    '21:9': { width: 1024, height: 439 } // 449,536 pixels - need to increase
+  // NanoBanan (google:4@1) supported dimensions:
+  // '0x0', '1024x1024', '1248x832', '832x1248', '1184x864', '864x1184', 
+  // '896x1152', '1152x896', '768x1344', '1344x768', '1536x672'
+  
+  const supportedDimensions = {
+    '1:1': { width: 1024, height: 1024 }, // 1024x1024
+    '4:3': { width: 1184, height: 864 }, // 1184x864 (closest to 4:3)
+    '3:2': { width: 1248, height: 832 }, // 1248x832 (closest to 3:2)
+    '16:9': { width: 1536, height: 672 }, // 1536x672 (closest to 16:9)
+    '21:9': { width: 1536, height: 672 } // 1536x672 (closest to 21:9)
   };
   
-  // Calculate minimum dimensions to meet 921,600 pixel requirement
-  const minPixels = 921600;
-  
-  if (aspectRatio === '1:1') {
-    return ratioMap['1:1']; // Already meets requirement
-  } else if (aspectRatio === '4:3') {
-    // 4:3 ratio: width/height = 4/3, so height = width * 3/4
-    // width * height >= 921600, so width * (width * 3/4) >= 921600
-    // width^2 * 3/4 >= 921600, so width^2 >= 1228800, so width >= 1108
-    const width = 1108;
-    const height = Math.round(width * 3 / 4);
-    return { width, height };
-  } else if (aspectRatio === '3:2') {
-    // 3:2 ratio: width/height = 3/2, so height = width * 2/3
-    // width * height >= 921600, so width * (width * 2/3) >= 921600
-    // width^2 * 2/3 >= 921600, so width^2 >= 1382400, so width >= 1176
-    const width = 1176;
-    const height = Math.round(width * 2 / 3);
-    return { width, height };
-  } else if (aspectRatio === '16:9') {
-    // 16:9 ratio: width/height = 16/9, so height = width * 9/16
-    // width * height >= 921600, so width * (width * 9/16) >= 921600
-    // width^2 * 9/16 >= 921600, so width^2 >= 1638400, so width >= 1280
-    const width = 1280;
-    const height = Math.round(width * 9 / 16);
-    return { width, height };
-  } else if (aspectRatio === '21:9') {
-    // 21:9 ratio: width/height = 21/9, so height = width * 9/21
-    // width * height >= 921600, so width * (width * 9/21) >= 921600
-    // width^2 * 9/21 >= 921600, so width^2 >= 2150400, so width >= 1467
-    const width = 1467;
-    const height = Math.round(width * 9 / 21);
-    return { width, height };
-  }
-  
-  // Default to 3:2 with minimum pixel requirement
-  const width = 1176;
-  const height = Math.round(width * 2 / 3);
-  return { width, height };
+  return supportedDimensions[aspectRatio] || supportedDimensions['3:2']; // Default to 3:2
 };
 
 export const generateSceneIllustration = async ({
@@ -172,17 +138,23 @@ export const generateSceneIllustration = async ({
     console.log(`🎨 Runware: Raw response data for page ${pageNumber}:`, data);
     
     const result = Array.isArray(data) ? data[0] : data;
+    console.log(`🎨 Runware: Full API response for page ${pageNumber}:`, JSON.stringify(data, null, 2));
     console.log(`🎨 Runware: Processed result for page ${pageNumber}:`, result);
+    console.log(`🎨 Runware: Available fields in result:`, Object.keys(result || {}));
+    
+    // Check for various possible image URL field names
+    const imageURL = result?.imageURL || result?.image_url || result?.url || result?.imageUrl || result?.image;
     console.log(`🎨 Runware: ImageURL check for page ${pageNumber}:`, {
-      hasImageURL: !!result?.imageURL,
-      imageURL: result?.imageURL,
+      hasImageURL: !!imageURL,
+      imageURL: imageURL,
       imageUUID: result?.imageUUID,
       cost: result?.cost,
-      seed: result?.seed
+      seed: result?.seed,
+      allFields: Object.keys(result || {})
     });
 
-    if (!result?.imageURL) {
-      console.error(`🎨 Runware: No image URL returned for page ${pageNumber}:`, result);
+    if (!imageURL) {
+      console.error(`🎨 Runware: No image URL found in any field for page ${pageNumber}:`, result);
       throw new HttpError(502, 'Runware did not return image URL', result);
     }
 
@@ -190,13 +162,13 @@ export const generateSceneIllustration = async ({
     return {
       pageNumber,
       prompt,
-      imageURL: result.imageURL, // Return URL directly instead of base64
+      imageURL: imageURL, // Use the found image URL
       meta: {
         aspectRatio,
         artStyle,
         imageUUID: result.imageUUID,
         seed: result.seed,
-        model: 'seedream-4.0',
+        model: 'google:4@1 (NanoBanan)',
         cost: result.cost,
       },
     };

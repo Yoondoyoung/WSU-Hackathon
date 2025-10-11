@@ -3,6 +3,8 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { config as loadEnv } from "dotenv";
 import { HttpError } from "../utils/errorHandlers.js";
+import { defaultCharacterVoiceSettings } from "../utils/voiceLibrary.js";
+import fs from "fs";
 // Timeline utility functions (inline implementation)
 const timelineDialogueText = (timeline = []) => {
   return timeline
@@ -23,7 +25,34 @@ const timelineDialogueText = (timeline = []) => {
     })
     .join(' ');
 };
-import fs from "fs";
+const narratorTypes = new Set(['narration', 'narrator']);
+
+const normaliseTimelineEntry = (entry = {}) => {
+  const rawType = entry.type ?? 'narration';
+  const type = typeof rawType === 'string' ? rawType.toLowerCase() : 'narration';
+
+  if (type === 'character') {
+    return {
+      type: 'character',
+      name: entry.name,
+      text: entry.text,
+      traits: entry.traits ?? [],
+    };
+  }
+
+  if (type === 'sfx' || type === 'sound_effect') {
+    return {
+      type: 'sfx',
+      description: entry.description ?? entry.text ?? 'Ambient sound',
+      placeholder: entry.placeholder,
+    };
+  }
+
+  return {
+    type: narratorTypes.has(type) ? 'narration' : 'narration',
+    text: entry.text,
+  };
+};
 
 const OPENAI_CHAT_COMPLETIONS_URL =
   "https://api.openai.com/v1/chat/completions";
@@ -50,6 +79,285 @@ const ensureOpenAiKey = () => {
   }
 
   envChecked = true;
+};
+
+const asNumberOrNull = (value) => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const normaliseVoiceSettings = (settings) => {
+  if (!settings || typeof settings !== 'object') {
+    return null;
+  }
+
+  const fallback = defaultCharacterVoiceSettings;
+  return {
+    stability: asNumberOrNull(settings.stability) ?? fallback.stability ?? 0.45,
+    similarity_boost: asNumberOrNull(settings.similarity_boost) ?? fallback.similarity_boost ?? 0.8,
+    style: asNumberOrNull(settings.style) ?? fallback.style ?? 0.2,
+    speed: asNumberOrNull(settings.speed) ?? 1.0,
+  };
+};
+
+const buildImageDescriptor = ({ name, appearance = {}, clothing, palette }) => {
+  const parts = [];
+
+  if (appearance.age) parts.push(appearance.age);
+  if (appearance.hair) parts.push(appearance.hair);
+  if (appearance.eyes) parts.push(appearance.eyes);
+  if (appearance.skin) parts.push(appearance.skin);
+  if (appearance.build) parts.push(appearance.build);
+  if (appearance.height) parts.push(appearance.height);
+  if (appearance.features || appearance.distinctive_features) {
+    parts.push(appearance.features || appearance.distinctive_features);
+  }
+  if (clothing) parts.push(clothing);
+  if (palette) parts.push(`color palette ${palette}`);
+
+  const descriptor = parts.filter(Boolean).join(', ');
+  return descriptor ? `${name}: ${descriptor}` : null;
+};
+
+const normaliseCharacterBible = (bible) => {
+  if (!Array.isArray(bible)) {
+    return [];
+  }
+
+  return bible
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') {
+        return null;
+      }
+
+      const name = entry.name || entry.character_name || entry.character;
+      if (!name) {
+        return null;
+      }
+
+      const appearance = entry.appearance && typeof entry.appearance === 'object'
+        ? {
+            age: entry.appearance.age || entry.age || entry.age_description,
+            hair: entry.appearance.hair || entry.hair,
+            eyes: entry.appearance.eyes || entry.eyes,
+            skin: entry.appearance.skin || entry.skin,
+            build: entry.appearance.build || entry.build || entry.body_type,
+            height: entry.appearance.height || entry.height,
+            features:
+              entry.appearance.distinctive_features ||
+              entry.appearance.features ||
+              entry.distinctive_features ||
+              entry.features,
+            distinctive_features:
+              entry.appearance.distinctive_features ||
+              entry.appearance.features ||
+              entry.distinctive_features ||
+              entry.features,
+          }
+        : {
+            age: entry.age || entry.age_description,
+            hair: entry.hair,
+            eyes: entry.eyes,
+            skin: entry.skin,
+            build: entry.build || entry.body_type,
+            height: entry.height,
+            features: entry.distinctive_features || entry.features,
+            distinctive_features: entry.distinctive_features || entry.features,
+          };
+
+      const voice = entry.voice && typeof entry.voice === 'object' ? entry.voice : {};
+      const voiceId =
+        entry.voice_id ||
+        entry.voiceId ||
+        voice.id ||
+        voice.voice_id ||
+        (entry.voice && entry.voice.voice_id);
+
+      const voiceSettings =
+        normaliseVoiceSettings(entry.voice_settings || voice.settings) ||
+        normaliseVoiceSettings(entry.voiceSettings);
+
+      const profile = {
+        name,
+        role: entry.role || entry.type || (entry.is_main ? 'main' : undefined),
+        summary: entry.summary || entry.description || entry.personality_summary,
+        appearance,
+        clothing: entry.wardrobe || entry.clothing || entry.outfit,
+        palette: entry.palette || entry.color_palette || entry.colours,
+        voiceId,
+        voiceSettings,
+        imagePrompt: entry.image_prompt || entry.imagePrompt,
+      };
+
+      profile.imageDescriptor = profile.imagePrompt || buildImageDescriptor(profile);
+
+      return profile;
+    })
+    .filter(Boolean);
+};
+
+const ensureVoiceAssignment = (assignment) => {
+  if (!assignment) {
+    return null;
+  }
+
+  const base = normaliseVoiceSettings(assignment.voiceSettings || assignment.voice_settings);
+
+  return {
+    voiceId: assignment.voiceId || assignment.voice_id,
+    voiceSettings: base || {
+      ...defaultCharacterVoiceSettings,
+      speed: 1.0,
+    },
+  };
+};
+
+const applyCharacterConsistency = (story, rawCharacterBible) => {
+  const characterBible = normaliseCharacterBible(rawCharacterBible);
+
+  if (!story || !Array.isArray(story.pages)) {
+    return {
+      ...story,
+      characterBible,
+      characters: characterBible.map(({ name, summary, role }) => ({
+        name,
+        summary,
+        role,
+      })),
+    };
+  }
+
+  const characterMap = new Map();
+
+  characterBible.forEach((profile) => {
+    characterMap.set(profile.name.toLowerCase(), profile);
+  });
+
+  const voiceAssignments = new Map();
+
+  characterBible.forEach((profile) => {
+    if (profile.voiceId) {
+      voiceAssignments.set(profile.name.toLowerCase(), {
+        voiceId: profile.voiceId,
+        voiceSettings:
+          profile.voiceSettings || {
+            ...defaultCharacterVoiceSettings,
+            speed: 1.0,
+          },
+      });
+    }
+  });
+
+  const upsertAssignment = (name, assignment) => {
+    if (!name) return;
+    const key = name.toLowerCase();
+    if (!assignment?.voiceId) {
+      return;
+    }
+    const existing = voiceAssignments.get(key);
+    if (!existing) {
+      voiceAssignments.set(key, {
+        voiceId: assignment.voiceId,
+        voiceSettings:
+          assignment.voiceSettings ||
+          {
+            ...defaultCharacterVoiceSettings,
+            speed: 1.0,
+          },
+      });
+      return;
+    }
+
+    voiceAssignments.set(key, {
+      voiceId: existing.voiceId,
+      voiceSettings:
+        existing.voiceSettings ||
+        assignment.voiceSettings ||
+        {
+          ...defaultCharacterVoiceSettings,
+          speed: 1.0,
+        },
+    });
+  };
+
+  // First pass: gather assignments from timelines
+  story.pages.forEach((page) => {
+    (page.timeline || []).forEach((entry) => {
+      if (entry?.type !== 'character' || !entry.name) {
+        return;
+      }
+
+      const assignment = ensureVoiceAssignment(entry);
+      if (assignment) {
+        upsertAssignment(entry.name, assignment);
+      }
+    });
+  });
+
+  // Second pass: enforce assignments and enhance image prompts
+  story.pages.forEach((page) => {
+    const pageCharacters = new Set();
+    page.timeline = (page.timeline || []).map((entry) => {
+      if (!entry || entry.type !== 'character' || !entry.name) {
+        return entry;
+      }
+
+      const key = entry.name.toLowerCase();
+      pageCharacters.add(key);
+      const assignment = voiceAssignments.get(key);
+      if (assignment?.voiceId) {
+        entry.voiceId = assignment.voiceId;
+        entry.voice_id = assignment.voiceId;
+      }
+      if (assignment?.voiceSettings) {
+        entry.voiceSettings = assignment.voiceSettings;
+        entry.voice_settings = assignment.voiceSettings;
+      }
+
+      return entry;
+    });
+
+    if (pageCharacters.size > 0) {
+      const descriptors = [...pageCharacters]
+        .map((key) => characterMap.get(key))
+        .filter(Boolean)
+        .map((profile) => profile.imageDescriptor)
+        .filter(Boolean);
+
+      if (descriptors.length > 0) {
+        const descriptorText = descriptors.join('. ');
+        const prompt = page.imagePrompt || page.image_prompt;
+        const consistencyNote = `Consistent characters: ${descriptorText}.`;
+        if (prompt?.includes('Consistent characters:')) {
+          page.imagePrompt = prompt;
+        } else if (prompt) {
+          page.imagePrompt = `${prompt.trim()} ${consistencyNote}`;
+        } else {
+          page.imagePrompt = consistencyNote;
+        }
+      }
+    }
+  });
+
+  const enrichedStory = {
+    ...story,
+    characterBible,
+    characters: characterBible.map(({ name, summary, role }) => ({
+      name,
+      summary,
+      role,
+    })),
+  };
+
+  return enrichedStory;
 };
 
 const buildUserPrompt = ({
@@ -138,23 +446,32 @@ const parseStoryFromContent = (content) => {
       };
     });
 
-    const fullTimelineText = pages
-      .map((page) => page.dialogueText)
-      .join("\n\n");
-
-    return {
+    const story = {
       title: parsed.title ?? "Untitled Adventure",
       logline: parsed.genre
         ? `${parsed.genre} - ${parsed.target_audience}`
         : "Untitled Story",
-      characters: [], // Will be extracted from timeline
       pages,
-      fullText: fullTimelineText,
+      fullText: null,
       metadata: {
         genre: parsed.genre,
         targetAudience: parsed.target_audience,
         theme: themeFromPages(pages),
       },
+    };
+
+    const enrichedStory = applyCharacterConsistency(
+      story,
+      parsed.character_bible || parsed.characters
+    );
+
+    const fullTimelineText = (enrichedStory.pages || [])
+      .map((page) => page.dialogueText)
+      .join("\n\n");
+
+    return {
+      ...enrichedStory,
+      fullText: fullTimelineText,
     };
   }
 
@@ -214,23 +531,32 @@ const parseStoryFromContent = (content) => {
     };
   });
 
-  const fullTimelineText = scenes
-    .map((scene) => scene.dialogueText)
-    .join("\n\n");
-
-  return {
+  const story = {
     title: parsed.title ?? "Untitled Adventure",
     logline: parsed.genre
       ? `${parsed.genre} - ${parsed.target_audience}`
       : "Untitled Story",
-    characters: parsed.characters ?? [],
     pages: scenes, // Keep as pages for compatibility
-    fullText: fullTimelineText,
+    fullText: null,
     metadata: {
       genre: parsed.genre,
       targetAudience: parsed.target_audience,
       theme: parsed.theme ?? themeFromPages(scenes),
     },
+  };
+
+  const enrichedStory = applyCharacterConsistency(
+    story,
+    parsed.character_bible || parsed.characters
+  );
+
+  const fullTimelineText = (enrichedStory.pages || [])
+    .map((scene) => scene.dialogueText)
+    .join("\n\n");
+
+  return {
+    ...enrichedStory,
+    fullText: fullTimelineText,
   };
 };
 
@@ -378,6 +704,19 @@ export const createStory = async (options) => {
        - Include clothing details and colors
        - Maintain the same visual style throughout the story
        - Example: "A young woman with long auburn hair and green eyes, wearing a blue tunic and brown leather boots, standing confidently in a mystical forest"
+
+    ## CHARACTER BIBLE OUTPUT (MANDATORY)
+    At the top level of the JSON response, include a "character_bible" array covering every recurring character (main, supporting, or newly introduced). Each entry must contain:
+    - "name": Character name (must match the dialogue timeline exactly)
+    - "role": One of "protagonist", "supporting", "antagonist", or "narrator"
+    - "summary": One sentence describing personality, motivation, and relationship to others
+    - "appearance": Object with fields "age", "hair", "eyes", "skin", "build", "height", and "distinctive_features"
+    - "wardrobe": Consistent outfit description with colors and accessories
+    - "palette": 3-4 color keywords that define the visual palette
+    - "voice_id": Choose exactly one voice ID (from the allowed list) for this character and reuse it for every timeline entry
+    - "voice_settings": Object with numeric values for "stability", "similarity_boost", "style", and "speed"
+    - "image_prompt": A single, camera-ready sentence summarising how this character should look in illustrations
+    Only use characters defined in this bible in the story. If a new named character is absolutely necessary, add them to the bible as well.
 
     ## STORY STRUCTURE
     Create exactly ${options.storyLength || 4} pages following a dynamic structure based on length:
@@ -642,6 +981,18 @@ export const createStory = async (options) => {
         - **Visual Style**: Specify art style (cinematic, fantasy, realistic, etc.)
         - **Camera Angle**: Include perspective (close-up, wide shot, etc.)
         - **Example**: "Cinematic fantasy scene featuring a 25-year-old woman with long auburn hair and emerald green eyes, wearing a dark blue tunic with silver trim and brown leather boots, standing confidently in a mystical forest with ancient stone ruins, dramatic lighting with golden hour sunbeams filtering through the trees, wide shot composition, high-quality digital art style"
+
+    ## OUTPUT JSON STRUCTURE
+    The final response must be valid JSON with the following top-level fields:
+    {
+      "title": string,
+      "logline": string,
+      "genre": string,
+      "target_audience": string,
+      "character_bible": [...],
+      "pages": [...]
+    }
+    Every timeline entry must use the voice_id assigned in "character_bible", and each page's image_prompt must reference the appropriate character descriptions from the bible.
 
 ${voicePrompt}
 
