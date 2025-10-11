@@ -9,12 +9,10 @@ import { generateSceneIllustration } from '../services/runwareService.js';
 import { mixPageAudio } from '../services/audioMixerService.js';
 import { asyncHandler, HttpError } from '../utils/errorHandlers.js';
 import { matchCharacterVoice, matchNarrationVoice, defaultCharacterVoiceSettings } from '../utils/voiceLibrary.js';
-import { timelineToMarkdown } from '../utils/timeline.js';
 import { saveBase64Asset } from '../utils/storage.js';
 import { resolveVoiceId } from '../config/voiceMap.js';
 import { processStory } from '../pipeline/storyPipeline.js';
 import { createStoryState, getStoryState } from '../state/storyState.js';
-import { NARRATOR_VOICES } from '../config/narratorVoices.js';
 
 const parseTraits = (value) => {
   if (!value) {
@@ -480,7 +478,7 @@ export const generateStoryBundle = asyncHandler(async (req, res) => {
       imageUrl: imageAsset?.publicUrl ?? null,
       audio: mixedAudio?.publicPath ?? null,
       audioUrl: mixedAudio?.publicUrl ?? null,
-      text_md: timelineToMarkdown(page.timeline),
+      text_md: page.timeline?.map(entry => entry.text || entry.description || '').filter(Boolean).join('\n\n') || '',
       timeline: page.timeline,
     });
   }
@@ -500,8 +498,17 @@ export const generateStoryBundle = asyncHandler(async (req, res) => {
 export const listNarratorVoices = asyncHandler(async (req, res) => {
   console.log('[narrator-voices] listing available narrator voices');
   
+  // Simple narrator voices list
+  const narratorVoices = [
+    { id: 'EkK5I93UQWFDigLMpZcX', name: 'James - Husky & Engaging', gender: 'male' },
+    { id: 'ESELSAYNsoxwNZeqEklA', name: 'Rebekah Nemethy - Pro Narration', gender: 'female' },
+    { id: 'Mu5jxyqZOLIGltFpfalg', name: 'Jameson - Guided Meditation', gender: 'male' },
+    { id: 'iCrDUkL56s3C8sCRl7wb', name: 'Hope - Soothing Narrator', gender: 'female' },
+    { id: 'iUqOXhMfiOIbBejNtfLR', name: 'W. Storytime Oxley', gender: 'male' }
+  ];
+  
   res.status(200).json({
-    voices: NARRATOR_VOICES,
-    total: NARRATOR_VOICES.length
+    voices: narratorVoices,
+    total: narratorVoices.length
   });
 });

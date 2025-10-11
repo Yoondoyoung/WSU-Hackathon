@@ -1,15 +1,5 @@
 // Centralized ElevenLabs voice mapping.
 // Auto-generated from ElevenLabs API on 2025-10-11T04:17:17.263Z
-// Enhanced with detailed voice characteristics for AI selection
-
-// Import enhanced voice mapping
-import { 
-  VOICE_DATABASE, 
-  selectVoiceByCharacteristics, 
-  selectNarratorVoice, 
-  selectCharacterVoice,
-  resolveVoiceId as enhancedResolveVoiceId 
-} from './enhancedVoiceMap.js';
 
 export const VOICE_ALIASES = {
   narrator: {
@@ -161,24 +151,48 @@ export const DEFAULTS = {
 
 const looksLikeId = (value) => typeof value === 'string' && value.length >= 12 && !/\s/.test(value);
 
-// Enhanced voice resolution with detailed characteristics
+// Simple voice resolution
 export const resolveVoiceId = (nameOrId, category = 'narrator') => {
-  return enhancedResolveVoiceId(nameOrId, category);
+  if (!nameOrId) {
+    return DEFAULTS.narrator;
+  }
+
+  // If it's already an ID, return as-is
+  if (looksLikeId(nameOrId)) {
+    return nameOrId;
+  }
+
+  // Try to find in aliases
+  const normalizedKey = String(nameOrId).toLowerCase().trim();
+  
+  // Check narrator aliases
+  if (VOICE_ALIASES.narrator[normalizedKey]) {
+    return VOICE_ALIASES.narrator[normalizedKey];
+  }
+  
+  // Check character aliases
+  if (VOICE_ALIASES.characters[normalizedKey]) {
+    return VOICE_ALIASES.characters[normalizedKey];
+  }
+  
+  // Default fallback
+  return DEFAULTS.narrator;
 };
 
-// New function for AI to select voices based on character characteristics
+// Simple voice selection functions
 export const selectVoiceForCharacter = (characteristics) => {
-  return selectVoiceByCharacteristics(characteristics);
+  // Simple fallback to default character voice
+  return DEFAULTS.character;
 };
 
-// New function for AI to select narrator voice based on story type
 export const selectVoiceForNarrator = (storyType) => {
-  return selectNarratorVoice(storyType);
+  // Simple fallback to default narrator voice
+  return DEFAULTS.narrator;
 };
 
-// New function for AI to select character voice based on character type
 export const selectVoiceForCharacterType = (characterType, emotion) => {
-  return selectCharacterVoice(characterType, emotion);
+  // Simple fallback to default character voice
+  return DEFAULTS.character;
 };
 
 export default {
@@ -188,5 +202,4 @@ export default {
   selectVoiceForCharacter,
   selectVoiceForNarrator,
   selectVoiceForCharacterType,
-  VOICE_DATABASE,
 };
