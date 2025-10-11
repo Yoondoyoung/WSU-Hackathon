@@ -1,0 +1,258 @@
+import { synthesizeSpeech, generateSoundEffect } from '../services/elevenLabsService.js';
+import { generateSceneIllustration } from '../services/runwareService.js';
+import { mixSequentialAudio, mixAudioWithSFX } from '../services/audioMixerService.js';
+import { saveBase64Asset } from '../utils/storage.js';
+import {
+  setReferenceImage,
+  getReferenceImage,
+  updateProgress,
+  setPageStatus,
+  appendPageLog,
+  recordPageError,
+  setPageAssets,
+} from '../state/storyState.js';
+import { ENABLE_AUDIO, ENABLE_IMAGES, ENABLE_ELEVEN_ENDPOINTS } from '../utils/features.js';
+import { resolveVoiceId } from '../config/voiceMap.js';
+import { matchCharacterVoice, defaultCharacterVoiceSettings } from '../utils/voiceLibrary.js';
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const pickNarrationVoice = (beat, fallbackId) => {
+  if (beat?.voiceId) return beat.voiceId;
+  if (beat?.voice) {
+    const resolved = resolveVoiceId(beat.voice, 'narrator');
+    if (resolved) return resolved;
+  }
+  return fallbackId || resolveVoiceId(process.env.ELEVENLABS_NARRATOR_VOICE_ID, 'narrator') || process.env.ELEVENLABS_NARRATOR_VOICE_ID;
+};
+
+const pickCharacterVoice = (beat) => {
+  if (beat?.voiceId) return beat.voiceId;
+  if (beat?.voice) {
+    const resolved = resolveVoiceId(beat.voice, 'characters');
+    if (resolved) return resolved;
+  }
+  if (beat?.traits) {
+    const resolved = matchCharacterVoice(beat.traits);
+    if (resolved) return resolved;
+  }
+  return resolveVoiceId('sam', 'characters') || matchCharacterVoice([]);
+};
+
+const synthesizeLine = async ({ text, voiceId, voiceSettings }) => {
+  if (!text || !voiceId) return null;
+  const response = await synthesizeSpeech({
+    text,
+    voiceId,
+    voiceSettings: voiceSettings ?? defaultCharacterVoiceSettings,
+  });
+  return {
+    buffer: Buffer.from(response.audioBase64, 'base64'),
+    base64: response.audioBase64,
+    voiceId,
+  };
+};
+
+const generateSound = async ({ description }) => {
+  if (!description) return null;
+  
+  try {
+    const response = await generateSoundEffect({ description, placeholder: description.slice(0, 20) });
+    return {
+      buffer: Buffer.from(response.audioBase64, 'base64'),
+      base64: response.audioBase64,
+    };
+  } catch (error) {
+    console.warn(`[pipeline] SFX generation failed for "${description}":`, error.message);
+    return null; // SFX 실패 시 null 반환하여 오디오 파이프라인 계속 진행
+  }
+};
+
+const generateIllustration = async ({ storyId, page, prompt }) => {
+  if (!ENABLE_IMAGES || !prompt) return null;
+  const referenceImage = getReferenceImage(storyId);
+  const illustration = await generateSceneIllustration({
+    prompt,
+    pageNumber: page,
+    referenceImage,
+  });
+
+  if (!referenceImage && illustration?.imageBase64) {
+    setReferenceImage(storyId, illustration.imageBase64);
+  }
+
+  const asset = await saveBase64Asset({
+    data: illustration.imageBase64,
+    extension: 'png',
+    directory: 'images',
+    fileName: `page-${page}.png`,
+  });
+
+  return asset;
+};
+
+export const processScene = async ({ storyId, page, timeline, imagePrompt, narratorVoiceId }) => {
+  setPageStatus(storyId, page, 'processing');
+  appendPageLog(storyId, page, `Setting the stage for scene ${page}...`);
+  console.log(`[pipeline] Scene ${page}: starting processing.`);
+
+  let hasError = false;
+  let illustration = null;
+  const audioBuffers = [];
+  let finalAudio = null;
+
+  if (ENABLE_AUDIO && ENABLE_ELEVEN_ENDPOINTS) {
+    for (const beat of timeline || []) {
+      const type = (beat.type || '').toLowerCase();
+      try {
+        if (type === 'narration') {
+          appendPageLog(storyId, page, 'Narrator steps into the spotlight.');
+          const voiceId = pickNarrationVoice(beat, narratorVoiceId);
+          if (!voiceId) {
+            appendPageLog(storyId, page, 'No narrator voice configured; skipping narration line.');
+            continue;
+          }
+          const line = await synthesizeLine({ text: beat.text, voiceId });
+          if (line) {
+            audioBuffers.push(line.buffer);
+            appendPageLog(storyId, page, 'Narration line captured.');
+          }
+        } else if (type === 'character') {
+          appendPageLog(storyId, page, `${beat.name || 'Character'} delivers a line.`);
+          const voiceId = pickCharacterVoice(beat);
+          const line = await synthesizeLine({ text: beat.text, voiceId });
+          if (line) {
+            audioBuffers.push(line.buffer);
+            appendPageLog(storyId, page, `${beat.name || 'Character'} line recorded.`);
+          }
+        } else if (type === 'sfx') {
+          const description = beat.description || beat.text;
+          if (!description) {
+            appendPageLog(storyId, page, 'Empty sound effect skipped.');
+            continue;
+          }
+          appendPageLog(storyId, page, `Generating sound effect: ${description}.`);
+          try {
+            const fx = await generateSound({ description });
+            if (fx) {
+              audioBuffers.push(fx.buffer);
+              appendPageLog(storyId, page, 'Sound effect ready.');
+            } else {
+              appendPageLog(storyId, page, 'Sound effect generation returned null - skipping.');
+            }
+          } catch (sfxError) {
+            appendPageLog(storyId, page, `Sound effect generation failed: ${sfxError.message} - continuing without SFX.`);
+            console.warn(`[pipeline] Scene ${page}: SFX generation failed, continuing without SFX:`, sfxError.message);
+            // SFX 실패해도 계속 진행
+          }
+        }
+      } catch (error) {
+        hasError = true;
+        const step = type === 'sfx' ? 'sound_effects' : type || 'audio';
+        recordPageError(storyId, page, { step, message: error.message });
+        appendPageLog(storyId, page, `Audio step failed: ${error.message}`);
+        console.error(`[pipeline] Scene ${page}: failed to process ${type} beat`, error);
+      }
+    }
+  } else {
+    appendPageLog(storyId, page, 'Audio pipeline disabled - skipping narration, dialogue, and SFX.');
+    console.log(`[pipeline] Scene ${page}: audio pipeline disabled.`);
+  }
+
+  if (audioBuffers.length > 0) {
+    try {
+      appendPageLog(storyId, page, 'Stitching narration, dialogue, and sound effects in sequence.');
+      const mixedBuffer = await mixSequentialAudio(audioBuffers);
+      if (mixedBuffer) {
+        finalAudio = await saveBase64Asset({
+          data: mixedBuffer.toString('base64'),
+          extension: 'mp3',
+          directory: 'audio/mixed',
+          fileName: `scene-${page}.mp3`,
+        });
+        setPageAssets(storyId, page, { audio: finalAudio.publicUrl });
+        appendPageLog(storyId, page, 'Sequential audio mix complete.');
+        console.log(`[pipeline] Scene ${page}: audio mix saved.`);
+      }
+    } catch (error) {
+      hasError = true;
+      recordPageError(storyId, page, { step: 'mixing', message: error.message });
+      appendPageLog(storyId, page, 'Audio mixing stumbled.');
+      console.error(`[pipeline] Mixing failed for scene ${page}`, error);
+    }
+  } else {
+    appendPageLog(storyId, page, 'No audio generated for this scene.');
+  }
+
+  try {
+    if (ENABLE_IMAGES && imagePrompt) {
+      appendPageLog(storyId, page, 'Painting the illustration...');
+      console.log(`[pipeline] Scene ${page}: requesting illustration.`);
+      illustration = await generateIllustration({ storyId, page, prompt: imagePrompt });
+      if (illustration) {
+        setPageAssets(storyId, page, { image: illustration.publicUrl });
+        appendPageLog(storyId, page, 'Illustration complete.');
+        console.log(`[pipeline] Scene ${page}: illustration ready.`);
+      }
+    } else if (!imagePrompt) {
+      appendPageLog(storyId, page, 'No image prompt provided; skipping illustration.');
+      console.log(`[pipeline] Scene ${page}: no image prompt provided.`);
+    } else {
+      appendPageLog(storyId, page, 'Image pipeline disabled; skipping illustration.');
+      console.log(`[pipeline] Scene ${page}: image pipeline disabled.`);
+    }
+  } catch (error) {
+    hasError = true;
+    appendPageLog(storyId, page, 'Illustration failed.');
+    recordPageError(storyId, page, { step: 'illustration', message: error.message });
+    console.error(`[pipeline] Illustration failed for scene ${page}`, error);
+  }
+
+  if (!hasError) {
+    appendPageLog(storyId, page, 'Scene ready for showtime.');
+    setPageStatus(storyId, page, 'completed');
+    console.log(`[pipeline] Scene ${page}: completed.`);
+  } else {
+    console.warn(`[pipeline] Scene ${page}: completed with issues.`);
+  }
+};
+
+export const processStory = async ({ storyId, story, narratorVoiceId }) => {
+  let completed = 0;
+  console.log(`[pipeline] Story ${storyId}: processing ${story.pages.length} scenes.`);
+  for (let i = 0; i < story.pages.length; i += 1) {
+    const page = story.pages[i];
+    const prompt = page.imagePrompt || page.image_prompt;
+    if (i === 0) {
+      console.log(`[pipeline] Story ${storyId}: running scene ${page.pageNumber} immediately.`);
+      await processScene({
+        storyId,
+        page: page.pageNumber,
+        timeline: page.timeline,
+        imagePrompt: prompt,
+        narratorVoiceId,
+      });
+      completed += 1;
+      updateProgress(storyId, completed);
+      console.log(`[pipeline] Story ${storyId}: scene ${page.pageNumber} finished (${completed}/${story.pages.length}).`);
+    } else {
+      console.log(`[pipeline] Story ${storyId}: scheduling scene ${page.pageNumber} in background.`);
+      sleep(i * 500)
+        .then(async () => {
+          await processScene({
+            storyId,
+            page: page.pageNumber,
+            timeline: page.timeline,
+            imagePrompt: prompt,
+            narratorVoiceId,
+          });
+          completed += 1;
+          updateProgress(storyId, completed);
+          console.log(`[pipeline] Story ${storyId}: scene ${page.pageNumber} finished (${completed}/${story.pages.length}).`);
+        })
+        .catch((error) => {
+          console.error(`[pipeline] Story ${storyId}: background scene ${page.pageNumber} crashed`, error);
+        });
+    }
+  }
+};
