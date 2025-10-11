@@ -1,7 +1,17 @@
 import axios from 'axios';
 
+// 환경에 따른 API base URL 설정
+const getBaseURL = () => {
+  if (import.meta.env.PROD) {
+    // 프로덕션 환경에서는 백엔드 URL을 설정
+    return import.meta.env.VITE_API_URL || 'https://your-backend-url.vercel.app/api';
+  }
+  // 개발 환경에서는 프록시 사용
+  return '/api';
+};
+
 const client = axios.create({
-  baseURL: '/api',
+  baseURL: getBaseURL(),
   timeout: 180000,
 });
 
