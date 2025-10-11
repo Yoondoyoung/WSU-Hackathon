@@ -16,7 +16,21 @@ export const asyncHandler = (handler) => async (req, res, next) => {
 };
 
 export const notFoundHandler = (req, res, next) => {
-  next(new HttpError(404, 'Route not found'));
+  const message = `Route not found: ${req.method} ${req.originalUrl}`;
+  next(new HttpError(404, message, { 
+    method: req.method, 
+    url: req.originalUrl,
+    availableRoutes: [
+      'GET /',
+      'GET /api/health',
+      'POST /api/story/generate',
+      'POST /api/story/build',
+      'GET /api/story/stories',
+      'GET /api/story/:storyId/status',
+      'GET /api/story/:storyId',
+      'GET /api/story/narrator-voices'
+    ]
+  }));
 };
 
 export const errorHandler = (error, req, res, next) => {

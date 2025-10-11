@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "vercel-build": "echo 'No build step required'"
   },
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
