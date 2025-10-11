@@ -27,12 +27,6 @@ import {
 
 const router = Router();
 
-// Debug middleware to log all requests
-router.use((req, res, next) => {
-  console.log(`[storyRoutes] ${req.method} ${req.originalUrl} - Request received`);
-  console.log(`[storyRoutes] Base URL: ${req.baseUrl}, Path: ${req.path}`);
-  next();
-});
 
 // Session management
 router.post('/session', createNewSession);
@@ -53,21 +47,9 @@ router.get('/narrator-voices', listNarratorVoices);
 router.post('/narrate-pages', ENABLE_AUDIO && ENABLE_ELEVEN_ENDPOINTS ? narratePages : disabledHandler('Narrate pages'));
 
 // Parameterized routes (must come after specific routes)
-router.get('/:storyId/status', (req, res, next) => {
-  console.log(`[storyRoutes] GET /${req.params.storyId}/status - Route matched`);
-  next();
-}, getStoryStatus);
-
-router.get('/:storyId/logs', (req, res, next) => {
-  console.log(`[storyRoutes] GET /${req.params.storyId}/logs - Route matched`);
-  next();
-}, getStoryGenerationLogs);
-
+router.get('/:storyId/status', getStoryStatus);
+router.get('/:storyId/logs', getStoryGenerationLogs);
 router.get('/:storyId/page/:pageNumber', getStoryPage);
-
-router.get('/:storyId', (req, res, next) => {
-  console.log(`[storyRoutes] GET /${req.params.storyId} - Route matched`);
-  next();
-}, getStoryById);
+router.get('/:storyId', getStoryById);
 
 export default router;

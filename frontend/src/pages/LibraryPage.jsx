@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { getStoriesBySession, getSessionStats, createSession } from '../lib/api.js';
+import StoryViewer from '../components/StoryViewer.jsx';
 
 const LibraryPage = ({ onNavigateToCreate }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -8,6 +9,7 @@ const LibraryPage = ({ onNavigateToCreate }) => {
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
   const [stories, setStories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedStoryId, setSelectedStoryId] = useState(null);
 
   // Mock data for now - will be replaced with Supabase data
   const mockStories = [
@@ -75,49 +77,72 @@ const LibraryPage = ({ onNavigateToCreate }) => {
     }
   ];
 
-  const genres = [
-    { name: 'All Genres', count: mockStories.length },
-    { name: 'Fantasy', count: mockStories.filter(s => s.genre === 'Fantasy').length },
-    { name: 'Adventure', count: mockStories.filter(s => s.genre === 'Adventure').length },
-    { name: 'Mystery', count: mockStories.filter(s => s.genre === 'Mystery').length },
-    { name: 'Romance', count: mockStories.filter(s => s.genre === 'Romance').length }
-  ];
+  // Dynamic genre calculation based on actual stories
+  const genres = useMemo(() => {
+    const genreCounts = stories.reduce((acc, story) => {
+      const genre = story.genre || 'General';
+      acc[genre] = (acc[genre] || 0) + 1;
+      return acc;
+    }, {});
+
+    const genreList = [
+      { name: 'All Genres', count: stories.length },
+      ...Object.entries(genreCounts).map(([name, count]) => ({ name, count }))
+    ];
+
+    return genreList;
+  }, [stories]);
 
   useEffect(() => {
     const loadStories = async () => {
       try {
         setLoading(true);
+        console.log('📚 Loading stories from database...');
         
         // Get or create session
         let sessionId = localStorage.getItem('sessionId');
         if (!sessionId) {
+          console.log('📚 No session found, creating new session...');
           const session = await createSession();
           sessionId = session.sessionId;
           localStorage.setItem('sessionId', sessionId);
+          console.log('📚 Created new session:', sessionId);
+        } else {
+          console.log('📚 Using existing session:', sessionId);
         }
         
         // Load stories from Supabase
+        console.log('📚 Fetching stories for session:', sessionId);
         const response = await getStoriesBySession(sessionId);
+        console.log('📚 API response:', response);
+        
         const storiesData = response.stories || [];
+        console.log('📚 Raw stories data:', storiesData);
         
         // Transform Supabase data to match our component structure
-        const transformedStories = storiesData.map(story => ({
-          id: story.id,
-          title: story.title,
-          author: 'You', // Since these are user-generated stories
-          genre: story.genre || 'General',
-          readingTime: Math.max(5, (story.story_length || 4) * 3), // Estimate reading time
-          thumbnail: story.story_pages?.[0]?.image_url || '/api/placeholder/300/200',
-          featured: false,
-          new: new Date(story.created_at) > new Date(Date.now() - 24 * 60 * 60 * 1000), // New if created within 24 hours
-          createdAt: new Date(story.created_at),
-          pages: story.story_length || 4,
-          status: story.status
-        }));
+        const transformedStories = storiesData.map(story => {
+          const transformed = {
+            id: story.id,
+            title: story.title || 'Untitled Story',
+            author: 'You', // Since these are user-generated stories
+            genre: story.genre || 'General',
+            readingTime: Math.max(5, (story.story_length || 4) * 3), // Estimate reading time
+            thumbnail: story.story_pages?.[0]?.image_url || '/api/placeholder/300/200',
+            featured: false,
+            new: new Date(story.created_at) > new Date(Date.now() - 24 * 60 * 60 * 1000), // New if created within 24 hours
+            createdAt: new Date(story.created_at),
+            pages: story.story_length || 4,
+            status: story.status || 'completed'
+          };
+          console.log('📚 Transformed story:', transformed);
+          return transformed;
+        });
         
+        console.log('📚 Final transformed stories:', transformedStories);
         setStories(transformedStories);
       } catch (error) {
-        console.error('Failed to load stories:', error);
+        console.error('📚 Failed to load stories:', error);
+        console.log('📚 Falling back to mock data');
         // Fallback to mock data if API fails
         setStories(mockStories);
       } finally {
@@ -151,6 +176,16 @@ const LibraryPage = ({ onNavigateToCreate }) => {
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
       </div>
+    );
+  }
+
+  // Show story viewer if a story is selected
+  if (selectedStoryId) {
+    return (
+      <StoryViewer 
+        storyId={selectedStoryId} 
+        onBack={() => setSelectedStoryId(null)} 
+      />
     );
   }
 
@@ -399,19 +434,48 @@ const LibraryPage = ({ onNavigateToCreate }) => {
               : 'grid-cols-1'
           }`}>
             {filteredStories.map((story) => (
-              <StoryCard key={story.id} story={story} viewMode={viewMode} />
+              <StoryCard 
+                key={story.id} 
+                story={story} 
+                viewMode={viewMode} 
+                onReadStory={setSelectedStoryId}
+              />
             ))}
           </div>
 
           {filteredStories.length === 0 && (
-            <div className="text-center py-12">
-              <div className="text-gray-400 mb-4">
-                <svg className="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No stories found</h3>
-              <p className="text-gray-500">Try adjusting your search or filters</p>
+            <div>
+              {stories.length === 0 ? (
+                // No stories at all - show create session card in top-left
+                <div 
+                  onClick={onNavigateToCreate}
+                  className="inline-block cursor-pointer group"
+                >
+                  <div className="w-48 h-48 border-2 border-dashed border-indigo-400 rounded-lg flex flex-col items-center justify-center bg-white hover:bg-indigo-50 transition-colors duration-200">
+                    <div className="w-12 h-12 mb-4 flex items-center justify-center">
+                      <svg className="w-8 h-8 text-indigo-500 group-hover:text-indigo-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                    </div>
+                    <span className="text-indigo-500 font-medium text-lg group-hover:text-indigo-600 transition-colors">
+                      Create Story
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                // Stories exist but filtered out - center the message
+                <div className="flex items-center justify-center min-h-[400px]">
+                  <div className="text-center py-12">
+                    <div className="text-gray-400 mb-4">
+                      <svg className="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No stories found</h3>
+                    <p className="text-gray-500">Try adjusting your search or filters</p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -420,12 +484,9 @@ const LibraryPage = ({ onNavigateToCreate }) => {
   );
 };
 
-const StoryCard = ({ story, viewMode }) => {
+const StoryCard = ({ story, viewMode, onReadStory }) => {
   const handleReadStory = () => {
-    // Store the story ID in localStorage for the StoryPager to use
-    localStorage.setItem('currentStoryId', story.id);
-    // You could also navigate to a story reading view here
-    console.log('Reading story:', story.id);
+    onReadStory(story.id);
   };
 
   const getStatusBadge = () => {

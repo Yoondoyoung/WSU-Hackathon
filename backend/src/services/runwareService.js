@@ -54,13 +54,7 @@ export const generateSceneIllustration = async ({
   characterReferences = [],
   storyId = null,
 }) => {
-  console.log(`🎨 Runware: Starting image generation for page ${pageNumber}...`, { 
-    prompt: prompt.substring(0, 100) + '...', 
-    artStyle, 
-    aspectRatio, 
-    seed,
-    characterReferencesCount: characterReferences.length 
-  });
+  console.log(`🎨 Runware: Generating image for page ${pageNumber}...`);
   
   requireApiKey();
 
@@ -92,7 +86,6 @@ export const generateSceneIllustration = async ({
       enhancedPrompt = `${prompt}. ${artStyleDescription}, high quality digital illustration, consistent character design, clean composition, professional artwork, vibrant colors, detailed rendering.`;
     }
 
-    console.log(`🎨 Runware: Calling Runware API for page ${pageNumber}...`);
     const taskUUID = uuidv4();
     const dimensions = getAspectRatioDimensions(aspectRatio);
     
@@ -133,17 +126,6 @@ export const generateSceneIllustration = async ({
       }
     ];
 
-    console.log(`🎨 Runware: Payload for page ${pageNumber}`, { 
-      taskUUID: taskUUID,
-      referenceImagesCount: referenceImages.length,
-      promptLength: enhancedPrompt.length,
-      model: 'google:4@1 (NanoBanan)',
-      outputFormat: payload[0].outputFormat,
-      dimensions: `${payload[0].width}x${payload[0].height}`,
-      aspectRatio: aspectRatio,
-      artStyle: artStyle,
-      seed: payload[0].seed
-    });
 
     const response = await axios.post(
       RUNWARE_URL,
@@ -158,26 +140,13 @@ export const generateSceneIllustration = async ({
     );
 
     const { data } = response;
-    console.log(`🎨 Runware: Raw response data for page ${pageNumber}:`, data);
     
     // The response structure is { data: [{ imageURL: "...", ... }] }
-    // We need to access the nested data array: response.data.data
     const dataArray = data?.data;
     const result = Array.isArray(dataArray) && dataArray.length > 0 ? dataArray[0] : null;
-    console.log(`🎨 Runware: Full API response for page ${pageNumber}:`, JSON.stringify(data, null, 2));
-    console.log(`🎨 Runware: Processed result for page ${pageNumber}:`, result);
-    console.log(`🎨 Runware: Available fields in result:`, Object.keys(result || {}));
     
     // Check for various possible image URL field names
     const imageURL = result?.imageURL || result?.image_url || result?.url || result?.imageUrl || result?.image;
-    console.log(`🎨 Runware: ImageURL check for page ${pageNumber}:`, {
-      hasImageURL: !!imageURL,
-      imageURL: imageURL,
-      imageUUID: result?.imageUUID,
-      cost: result?.cost,
-      seed: result?.seed,
-      allFields: Object.keys(result || {})
-    });
 
     if (!imageURL) {
       console.error(`🎨 Runware: No image URL found in any field for page ${pageNumber}:`, result);

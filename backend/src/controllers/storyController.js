@@ -249,25 +249,7 @@ export const buildStoryPipeline = asyncHandler(async (req, res) => {
 
   // Save story pages to database
   for (const page of story.pages) {
-    console.log(`[storyController] Raw page object:`, {
-      keys: Object.keys(page),
-      pageNumber: page.pageNumber,
-      page: page.page,
-      title: page.title,
-      scene_title: page.scene_title,
-      imagePrompt: page.imagePrompt,
-      image_prompt: page.image_prompt
-    });
-    
-    console.log(`[storyController] Saving page:`, { 
-      pageNumber: page.pageNumber, 
-      scene_title: page.title,
-      hasTimeline: !!page.timeline,
-      timelineLength: page.timeline?.length
-    });
-    
     if (!page.pageNumber) {
-      console.error(`[storyController] Page number is missing for page:`, page);
       throw new HttpError(400, 'Page number is missing from story page');
     }
     
@@ -295,11 +277,6 @@ export const buildStoryPipeline = asyncHandler(async (req, res) => {
 
 export const getStoryStatus = asyncHandler(async (req, res) => {
   const { storyId } = req.params;
-  
-  console.log(`[getStoryStatus] Function called with story ID: ${storyId}`);
-  console.log(`[getStoryStatus] Request params:`, req.params);
-  console.log(`[getStoryStatus] Request path:`, req.path);
-  console.log(`[getStoryStatus] Request url:`, req.url);
   
   if (!storyId) {
     throw new HttpError(400, 'Story ID is required');
