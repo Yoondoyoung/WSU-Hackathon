@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { getStoriesBySession, getSessionStats, createSession, getAllStories } from '../lib/api.js';
 import StoryViewer from '../components/StoryViewer.jsx';
 
@@ -45,18 +46,44 @@ const calculateStoryDuration = async (storyPages) => {
   }
 };
 
-const LibraryPage = ({ onNavigateToCreate }) => {
+const LibraryPage = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedGenre, setSelectedGenre] = useState('All Genres');
   const [readingTime, setReadingTime] = useState(15);
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
   const [stories, setStories] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedStoryId, setSelectedStoryId] = useState(null);
-  const [currentPage, setCurrentPage] = useState(1);
+  
+  // URL에서 상태 읽기
+  const selectedStoryId = searchParams.get('story');
+  const currentPage = parseInt(searchParams.get('page') || '1', 10);
+  
   const [totalPages, setTotalPages] = useState(1);
   const [totalStories, setTotalStories] = useState(0);
 
+  // URL 파라미터 업데이트 함수들
+  const updateUrlParams = (updates) => {
+    const newParams = new URLSearchParams(searchParams);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === null || value === undefined || value === '') {
+        newParams.delete(key);
+      } else {
+        newParams.set(key, value.toString());
+      }
+    });
+    setSearchParams(newParams);
+  };
+
+  const setSelectedStoryId = (storyId) => {
+    updateUrlParams({ story: storyId });
+  };
+
+  const setCurrentPage = (page) => {
+    updateUrlParams({ page: page });
+  };
 
   // Dynamic genre calculation based on actual stories
   const genres = useMemo(() => {
@@ -209,7 +236,7 @@ const LibraryPage = ({ onNavigateToCreate }) => {
           <div className="flex items-center space-x-2 sm:space-x-4">
             <div className="flex bg-gray-100 rounded-lg p-1">
               <button
-                onClick={onNavigateToCreate}
+                onClick={() => navigate('/create')}
                 className="px-2 sm:px-3 py-1 rounded text-xs sm:text-sm font-medium bg-white text-gray-600 hover:text-gray-900 transition-colors"
               >
                 Create
@@ -508,7 +535,7 @@ const LibraryPage = ({ onNavigateToCreate }) => {
               {stories.length === 0 ? (
                 // No stories at all - show create session card in top-left
                 <div 
-                  onClick={onNavigateToCreate}
+                  onClick={() => navigate('/create')}
                   className="inline-block cursor-pointer group"
                 >
                   <div className="w-48 h-48 border-2 border-dashed border-indigo-400 rounded-lg flex flex-col items-center justify-center bg-white hover:bg-indigo-50 transition-colors duration-200">

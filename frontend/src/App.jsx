@@ -1,17 +1,17 @@
-import { useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import CreatePage from './pages/CreatePage.jsx';
 import LibraryPage from './pages/LibraryPage.jsx';
 
 const App = () => {
-  const [currentView, setCurrentView] = useState('create'); // 'create' or 'library'
-
-  // Show Library view
-  if (currentView === 'library') {
-    return <LibraryPage onNavigateToCreate={() => setCurrentView('create')} />;
-  }
-
-  // Show Create view
-  return <CreatePage onNavigateToLibrary={() => setCurrentView('library')} />;
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<Navigate to="/create" replace />} />
+        <Route path="/create" element={<CreatePage />} />
+        <Route path="/library" element={<LibraryPage />} />
+      </Routes>
+    </Router>
+  );
 };
 
 export default App;

@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import StoryForm from '../components/StoryForm.jsx';
 import StoryPager from '../components/StoryPager.jsx';
 import StoryPipelineStatus from '../components/StoryPipelineStatus.jsx';
@@ -10,7 +11,8 @@ const statusCopy = {
   narrating: 'Creating narration…',
 };
 
-const CreatePage = ({ onNavigateToLibrary }) => {
+const CreatePage = () => {
+  const navigate = useNavigate();
   
   const {
     story,
@@ -24,7 +26,7 @@ const CreatePage = ({ onNavigateToLibrary }) => {
     progress,
   } = useStorybook(() => {
     // When story generation is completed, switch to library view
-    onNavigateToLibrary();
+    navigate('/library');
   });
 
   const handleGenerate = async (payload) => {
@@ -52,7 +54,7 @@ const CreatePage = ({ onNavigateToLibrary }) => {
                 Create
               </button>
               <button
-                onClick={onNavigateToLibrary}
+                onClick={() => navigate('/library')}
                 className="px-2 sm:px-3 py-1 rounded text-xs sm:text-sm font-medium bg-white text-gray-600 hover:text-gray-900 transition-colors"
               >
                 Library
