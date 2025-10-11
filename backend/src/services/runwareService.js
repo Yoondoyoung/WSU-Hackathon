@@ -31,14 +31,52 @@ const getArtStyleDescription = (artStyle) => {
 
 const getAspectRatioDimensions = (aspectRatio) => {
   const ratioMap = {
-    '1:1': { width: 1024, height: 1024 },
-    '4:3': { width: 1024, height: 768 },
-    '3:2': { width: 1024, height: 683 },
-    '16:9': { width: 1024, height: 576 },
-    '21:9': { width: 1024, height: 439 }
+    '1:1': { width: 1024, height: 1024 }, // 1,048,576 pixels ✓
+    '4:3': { width: 1024, height: 768 }, // 786,432 pixels - need to increase
+    '3:2': { width: 1024, height: 683 }, // 699,392 pixels - need to increase
+    '16:9': { width: 1024, height: 576 }, // 589,824 pixels - need to increase
+    '21:9': { width: 1024, height: 439 } // 449,536 pixels - need to increase
   };
   
-  return ratioMap[aspectRatio] || { width: 1024, height: 683 }; // Default to 3:2
+  // Calculate minimum dimensions to meet 921,600 pixel requirement
+  const minPixels = 921600;
+  
+  if (aspectRatio === '1:1') {
+    return ratioMap['1:1']; // Already meets requirement
+  } else if (aspectRatio === '4:3') {
+    // 4:3 ratio: width/height = 4/3, so height = width * 3/4
+    // width * height >= 921600, so width * (width * 3/4) >= 921600
+    // width^2 * 3/4 >= 921600, so width^2 >= 1228800, so width >= 1108
+    const width = 1108;
+    const height = Math.round(width * 3 / 4);
+    return { width, height };
+  } else if (aspectRatio === '3:2') {
+    // 3:2 ratio: width/height = 3/2, so height = width * 2/3
+    // width * height >= 921600, so width * (width * 2/3) >= 921600
+    // width^2 * 2/3 >= 921600, so width^2 >= 1382400, so width >= 1176
+    const width = 1176;
+    const height = Math.round(width * 2 / 3);
+    return { width, height };
+  } else if (aspectRatio === '16:9') {
+    // 16:9 ratio: width/height = 16/9, so height = width * 9/16
+    // width * height >= 921600, so width * (width * 9/16) >= 921600
+    // width^2 * 9/16 >= 921600, so width^2 >= 1638400, so width >= 1280
+    const width = 1280;
+    const height = Math.round(width * 9 / 16);
+    return { width, height };
+  } else if (aspectRatio === '21:9') {
+    // 21:9 ratio: width/height = 21/9, so height = width * 9/21
+    // width * height >= 921600, so width * (width * 9/21) >= 921600
+    // width^2 * 9/21 >= 921600, so width^2 >= 2150400, so width >= 1467
+    const width = 1467;
+    const height = Math.round(width * 9 / 21);
+    return { width, height };
+  }
+  
+  // Default to 3:2 with minimum pixel requirement
+  const width = 1176;
+  const height = Math.round(width * 2 / 3);
+  return { width, height };
 };
 
 export const generateSceneIllustration = async ({
