@@ -109,9 +109,12 @@ export const generateSceneImages = async (payload) => {
 
 export const fetchNarratorVoices = async () => {
   try {
+    console.log('🌐 API: Fetching narrator voices...');
     const { data } = await client.get('/story/narrator-voices');
+    console.log('🌐 API: Received narrator voices:', data);
     return data.voices;
   } catch (error) {
+    console.error('🌐 API: Failed to fetch narrator voices:', error);
     throw new Error(unwrap(error));
   }
 };

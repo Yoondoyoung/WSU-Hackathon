@@ -157,7 +157,9 @@ export const StoryForm = ({ onGenerate, isLoading, latestError, submitLabel = 'C
   useEffect(() => {
     const loadNarratorVoices = async () => {
       try {
+        console.log('🎤 Loading narrator voices...');
         const voices = await fetchNarratorVoices();
+        console.log('🎤 Loaded narrator voices:', voices);
         setNarratorVoices(voices);
       } catch (error) {
         console.error('Failed to load narrator voices:', error);
@@ -168,6 +170,30 @@ export const StoryForm = ({ onGenerate, isLoading, latestError, submitLabel = 'C
             name: 'James - Husky & Engaging',
             gender: 'male',
             description: 'Deep, engaging male voice perfect for adventure stories'
+          },
+          {
+            id: 'ESELSAYNsoxwNZeqEklA',
+            name: 'Rebekah Nemethy - Pro Narration',
+            gender: 'female',
+            description: 'Professional female narrator with clear, warm delivery'
+          },
+          {
+            id: 'Mu5jxyqZOLIGltFpfalg',
+            name: 'Jameson - Guided Meditation',
+            gender: 'male',
+            description: 'Calm, soothing male voice ideal for peaceful stories'
+          },
+          {
+            id: 'iCrDUkL56s3C8sCRl7wb',
+            name: 'Hope - Soothing Narrator',
+            gender: 'female',
+            description: 'Gentle, comforting female voice for emotional stories'
+          },
+          {
+            id: 'iUqOXhMfiOIbBejNtfLR',
+            name: 'W. Storytime Oxley',
+            gender: 'male',
+            description: 'Classic storyteller voice with traditional charm'
           }
         ]);
       } finally {
@@ -315,12 +341,15 @@ export const StoryForm = ({ onGenerate, isLoading, latestError, submitLabel = 'C
           <select {...register('narrationVoiceId')}>
             {(narratorVoices || []).map((voice) => (
               <option key={voice.id} value={voice.id}>
-                {voice.name} ({voice.gender}) - {voice.description}
+                {voice.name} ({voice.gender})
               </option>
             ))}
           </select>
         )}
-        <span className="text-xs text-slate-400">Choose a narrator voice for your story</span>
+        <span className="text-xs text-slate-400">
+          Choose a narrator voice for your story
+          {narratorVoices.length > 0 && ` • ${narratorVoices.length} voices available`}
+        </span>
       </label>
       </div>
 
